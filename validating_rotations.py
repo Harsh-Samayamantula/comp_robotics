@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib
+import matplotlib as plt
 import scipy.stats
 from utils import *
 
@@ -159,3 +159,44 @@ def random_quaternion(naive=True):
         print(check_quaternion(q))
 
         return q
+    
+
+def quaternion_multiply(q1, q0):
+    w0, x0, y0, z0 = q0
+    w1, x1, y1, z1 = q1
+    return np.array([-x1 * x0 - y1 * y0 - z1 * z0 + w1 * w0,
+                     x1 * w0 + y1 * z0 - z1 * y0 + w1 * x0,
+                     -x1 * z0 + y1 * w0 + z1 * x0 + w1 * y0,
+                     x1 * y0 - y1 * x0 + z1 * w0 + w1 * z0], dtype=np.float64)
+
+    
+def visualize_rotation(M, quaternion=False):
+    v0 = np.array([0,0,1]) # North Pole
+    epsilon = 0.01
+    v1 = np.array([0, epsilon, 0]) + v0
+
+    if quaternion:
+        q = M
+        q_conj = np.array([q[0], -q[1], -q[2], -q[3]])
+        v0_q = np.concatenate(([0], v0))
+        v1_q = np.concatenate(([0], v1))
+        
+        v0_prime = quaternion_multiply(quaternion_multiply(q, v0_q), q_conj)
+        v1_prime = quaternion_multiply(quaternion_multiply(q, v1_q), q_conj)
+    else:
+        v0_prime = v0 @ M
+        v1_prime = v1 @ M - v0
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.quiver(v0_prime[0], v0_prime[1], v0_prime[2], v1_prime[0], v1_prime[1], v1_prime[2], color='m', label='v1_prime (rotated)')
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_xlim([-1, 1])
+    ax.set_ylim([-1, 1])
+    ax.set_zlim([-1, 1])
+    ax.legend()
+    plt.show()
