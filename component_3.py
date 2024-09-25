@@ -4,6 +4,13 @@ from matplotlib.patches import Rectangle
 import matplotlib.animation as animation
 import scipy.stats
 from utils import *
+from component_2 import *
+from component_1 import *
+
+# Ensure theta is in range [0, 2pi]
+# Ensure check SEn and check SOn work for n=2
+# Ensure determinant correction works for correct methods
+
 
 
 def interpolate_rigid_body(start_pose, goal_pose):
@@ -23,7 +30,13 @@ def interpolate_rigid_body(start_pose, goal_pose):
     
     return np.array(robot_path)
 
+print(interpolate_rigid_body([0, 0, 0], [10, 10, np.pi]))
 
+
+example_plan = [
+    ([1.2, 3, 0.25], 3),
+    ([3, 2, -0.5], 3),
+]
 
 def forward_propogate_rigid_body(start_pose, plan):
     x0, y0, theta0 = start_pose
@@ -41,6 +54,8 @@ def forward_propogate_rigid_body(start_pose, plan):
         robot_path.append([x0, y0, theta0])
 
     return np.array(robot_path)
+
+print(forward_propogate_rigid_body([0, 0, 0], example_plan))
 
 def visualize_path(path):
     r_width, r_length = 0.5, 0.3
