@@ -10,11 +10,6 @@ from component_1 import *
 # Ensure check SEn and check SOn work for n=2
 # Ensure determinant correction works for correct methods
 
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from matplotlib.patches import Rectangle
-
 # Helper function to create a 2D rotation matrix
 def rotation_matrix(theta):
     return np.array([[np.cos(theta), -np.sin(theta)], 
@@ -73,6 +68,9 @@ def visualize_arm_path(path):
 
     # Plotting the arm initially
     line, = ax.plot([], [], 'o-', lw=4)
+    
+    # List to store the end-effector positions
+    end_effector_path = []
 
     def update(frame):
         theta0, theta1 = path[frame]
@@ -80,9 +78,15 @@ def visualize_arm_path(path):
         
         # Update the line to reflect new joint positions
         line.set_data([J0[0], J1[0], J2[0]], [J0[1], J1[1], J2[1]])
+        
+        # Append the end-effector position to the list
+        end_effector_path.append(J2)
+        
+        # Plot the end-effector path
+        ax.plot([p[0] for p in end_effector_path], [p[1] for p in end_effector_path], 'r-', lw=2, label="End-Effector Path")
         return line,
 
-    ani = animation.FuncAnimation(fig, update, frames=len(path), interval=100, blit=True, repeat=False)
+    ani = animation.FuncAnimation(fig, update, frames=len(path), interval=100, blit=False, repeat=False)
     
     plt.show()
 
