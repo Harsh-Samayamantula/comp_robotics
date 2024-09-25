@@ -1,6 +1,5 @@
 import numpy as np
 # import matplotlib as plt
-from utils import *
 
 
 def check_SOn(m, epsilon=0.01):

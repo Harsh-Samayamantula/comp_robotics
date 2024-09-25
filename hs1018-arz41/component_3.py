@@ -1,7 +1,6 @@
 import numpy as np
 from matplotlib.patches import Rectangle
 import matplotlib.animation as animation
-from utils import *
 from component_2 import *
 from component_1 import *
 
