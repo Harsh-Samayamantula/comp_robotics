@@ -27,7 +27,7 @@ def interpolate_arm(start, goal):
     
     # Create a list of interpolated poses
     robot_path = []
-    steps=50
+    steps = 10
     for t in np.linspace(0, 1, steps):
         theta0 = (1 - t) * theta0_0 + t * theta0_1
         theta1 = (1 - t) * theta1_0 + t * theta1_1
