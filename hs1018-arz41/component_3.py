@@ -44,7 +44,7 @@ def forward_propogate_rigid_body(start_pose, plan):
 
     return np.array(robot_path)
 
-def visualize_path(path):
+def visualize_path(path, gifName=''):
     r_width, r_length = 0.5, 0.3
 
     fig, ax = plt.subplots()
@@ -73,20 +73,15 @@ def visualize_path(path):
         return robot,
     
     ani = animation.FuncAnimation(fig, update, frames=len(path), interval=200, blit=True, repeat=False)
+    if gifName != '':
+        ani.save(gifName, writer='imagemagick', fps=5)
+        print(f"Animation saved as {gifName}")
 
     plt.legend()
     plt.show()
 
 
 if __name__ == '__main__':
-    print(interpolate_rigid_body([0, 0, 0], [10, 10, np.pi]))
-        
-    example_plan = [
-        ([1.2, 3, 0.25], 3),
-        ([3, 2, -0.5], 3),
-    ]
-    print(forward_propogate_rigid_body([0, 0, 0], example_plan))
-    
     example_path = [
         [-5, -5, 0],
         [-3, -4, np.pi/8],
@@ -96,3 +91,15 @@ if __name__ == '__main__':
         [5, 5, np.pi]
     ]
     visualize_path(example_path)
+
+    interpolatePath = interpolate_rigid_body([0, 0, 0], [8, 8, np.pi])
+    visualize_path(interpolatePath)
+
+    example_plan = [
+        ([1.2, 3, 0.25], 1),
+        ([3, 2, -0.5], 1),
+        ([1, -1, 0.25], 2),
+        ([-4, -3, -0.5], 3),
+    ]
+    forwardPropPath = forward_propogate_rigid_body([0, 0, 0], example_plan)
+    visualize_path(forwardPropPath)

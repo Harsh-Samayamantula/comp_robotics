@@ -44,7 +44,7 @@ def forward_propagate_arm(start_pose, plan):
     return np.array(robot_path)
 
 # Visualize the arm's movement
-def visualize_arm_path(path):
+def visualize_arm_path(path, gifName=''):
     link1_length, link2_length = 2, 1.5
     fig, ax = plt.subplots()
     
@@ -87,7 +87,10 @@ def visualize_arm_path(path):
         return line,
 
     ani = animation.FuncAnimation(fig, update, frames=len(path), interval=100, blit=False, repeat=False)
-    
+    if gifName != '':
+        ani.save(gifName, writer='imagemagick', fps=5)
+        print(f"Animation saved as {gifName}")
+
     plt.show()
 
 if __name__ == '__main__':
@@ -100,6 +103,13 @@ if __name__ == '__main__':
     # Example for forward propagation with a plan
     example_plan = [
         ((0.1, 0.05), 2),  # (velocity in theta0, velocity in theta1), duration
-        ((-0.1, 0.1), 2),
+        ((0.2, 0.1), 2),
+        ((0.1, -0.2), 3),  # (velocity in theta0, velocity in theta1), duration
+        ((0.05, -0.25), 2),
+        ((0.05, -0.25), 2),
+        ((0.05, -0.25), 2),
+        ((0.05, -0.25), 2),
+        ((0.05, -0.25), 2),
     ]
-    print(forward_propagate_arm(start_pose, example_plan))
+    forwardPropPath = forward_propagate_arm(start_pose, example_plan)
+    visualize_arm_path(forwardPropPath)
