@@ -1,6 +1,5 @@
 import numpy as np
-import matplotlib as plt
-import scipy.stats
+# import matplotlib as plt
 from utils import *
 
 

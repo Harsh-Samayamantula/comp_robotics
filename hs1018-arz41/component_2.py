@@ -1,6 +1,5 @@
 import numpy as np
-import matplotlib as plt
-import scipy.stats
+import matplotlib.pyplot as plt
 from utils import *
 from component_1 import *
 
@@ -135,14 +134,6 @@ def visualize_rotation(M, ax, quaternion=False):
     ax.quiver(v0_prime[0], v0_prime[1], v0_prime[2], v1_prime[0], v1_prime[1], v1_prime[2], color='k')
 
 
-print(random_rotation_matrix(naive=True))
-print(random_rotation_matrix(naive=False))
-
-print(random_quaternion(naive=True))
-print(random_quaternion(naive=False))
-
-
-
 def visualize(quaternion=False):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -175,4 +166,10 @@ def visualize(quaternion=False):
 
     plt.show()
 
-visualize(quaternion=False)
+if __name__ == '__main__':
+    print(random_rotation_matrix(naive=True))
+    print(random_rotation_matrix(naive=False))
+
+    print(random_quaternion(naive=True))
+    print(random_quaternion(naive=False))
+    visualize(quaternion=False)
