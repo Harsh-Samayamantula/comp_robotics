@@ -113,7 +113,8 @@ def quaternion_multiply(q1, q0):
                      x1 * y0 - y1 * x0 + z1 * w0 + w1 * z0], dtype=np.float64)
 
     
-def visualize_rotation(M, quaternion=False):
+    
+def visualize_rotation(M, ax, quaternion=False):
     v0 = np.array([0,0,1]) # North Pole
     epsilon = 0.01
     v1 = np.array([0, epsilon, 0]) + v0
@@ -124,28 +125,54 @@ def visualize_rotation(M, quaternion=False):
         v0_q = np.concatenate(([0], v0))
         v1_q = np.concatenate(([0], v1))
         
-        v0_prime = quaternion_multiply(quaternion_multiply(q, v0_q), q_conj)
-        v1_prime = quaternion_multiply(quaternion_multiply(q, v1_q), q_conj)
+        v0_prime = quaternion_multiply(quaternion_multiply(q, v0_q), q_conj)[1:]
+        v1_prime = quaternion_multiply(quaternion_multiply(q, v1_q), q_conj)[1:] - v0_prime
+
     else:
         v0_prime = v0 @ M
-        v1_prime = v1 @ M - v0
+        v1_prime = (v1 @ M) - v0_prime
     
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    ax.quiver(v0_prime[0], v0_prime[1], v0_prime[2], v1_prime[0], v1_prime[1], v1_prime[2], color='k')
 
-    ax.quiver(v0_prime[0], v0_prime[1], v0_prime[2], v1_prime[0], v1_prime[1], v1_prime[2], color='m', label='v1_prime (rotated)')
-
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_xlim([-1, 1])
-    ax.set_ylim([-1, 1])
-    ax.set_zlim([-1, 1])
-    ax.legend()
-    plt.show()
 
 print(random_rotation_matrix(naive=True))
 print(random_rotation_matrix(naive=False))
 
 print(random_quaternion(naive=True))
 print(random_quaternion(naive=False))
+
+
+
+def visualize(quaternion=False):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plotting sphere
+    u = np.linspace(0, 2 * np.pi, 100)
+    v = np.linspace(0, np.pi, 100)
+    x = np.outer(np.cos(u), np.sin(v))
+    y = np.outer(np.sin(u), np.sin(v))
+    z = np.outer(np.ones(np.size(u)), np.cos(v))
+    ax.plot_surface(x, y, z, color='b', alpha=0.3, rstride=5, cstride=5)
+
+    # Loop over the number of random transformations to visualize
+    for _ in range(100):
+        if quaternion:
+            q = random_quaternion()  # Assuming this is already implemented
+            visualize_rotation(q, ax, quaternion=True)
+        else:
+            M = random_rotation_matrix()  # Assuming this is already implemented
+            visualize_rotation(M, ax, quaternion=False)
+
+    # Set plot labels and limits
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_xlim([-1, 1])
+    ax.set_ylim([-1, 1])
+    ax.set_zlim([-1, 1])
+    ax.set_title(f'Visualization of {100} Random Rotations')
+
+    plt.show()
+
+visualize(quaternion=False)
