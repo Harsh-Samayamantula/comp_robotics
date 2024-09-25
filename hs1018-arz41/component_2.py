@@ -11,9 +11,6 @@ def random_rotation_matrix(naive=True):
         beta = np.random.uniform(0, 2*np.pi)
         gamma = np.random.uniform(0, 2*np.pi)
 
-        # alpha, beta, gamma = random_euler_angles()
-
-
         R_z = np.array([[np.cos(alpha), -np.sin(alpha), 0],
                         [np.sin(alpha), np.cos(alpha), 0],
                         [0, 0, 1]])
@@ -28,10 +25,7 @@ def random_rotation_matrix(naive=True):
 
         res = R_z @ R_y @ R_x
 
-        print(check_SOn(res))
-
         return res
-
 
     else:
         # Efficient method using householder matrix
@@ -51,17 +45,12 @@ def random_rotation_matrix(naive=True):
                     [-np.sin(theta), np.cos(theta), 0],
                     [0, 0, 1]])
         
-        
-        # M = 2 * V @ V.T - np.eye(3)
         M = np.eye(3) - 2 * np.outer(V, V)
 
         res = M @ B
 
         if np.linalg.det(res) < 0:
             res[:, 0] = -res[:, 0] 
-
-
-        print(check_SOn(res))
 
         return res
 
@@ -79,8 +68,6 @@ def random_quaternion(naive=True):
         
         q =  np.array([w, x, y, z])
 
-        print(check_quaternion(q))
-
         return q
         
     else:
@@ -97,8 +84,6 @@ def random_quaternion(naive=True):
         z = np.sin(theta2)*sigma2
 
         q = np.array([w, x, y, z])
-
-        print(check_quaternion(q))
 
         return q
     
@@ -149,13 +134,13 @@ def visualize(quaternion=False):
     # Loop over the number of random transformations to visualize
     for _ in range(100):
         if quaternion:
-            q = random_quaternion()  # Assuming this is already implemented
+            q = random_quaternion() 
             visualize_rotation(q, ax, quaternion=True)
         else:
-            M = random_rotation_matrix()  # Assuming this is already implemented
+            M = random_rotation_matrix() 
             visualize_rotation(M, ax, quaternion=False)
 
-    # Set plot labels and limits
+
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')

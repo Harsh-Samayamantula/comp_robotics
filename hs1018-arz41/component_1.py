@@ -65,4 +65,37 @@ def correct_quaternion(v, epsilon=0.01):
     return v
 
 
+###### TESTING
+if __name__ == '__main__':
+
+    m1 = np.array([[1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1]])
+    print(f"INPUT:\n{m1} \nFUNCTION: correct_SOn(input) \nOUTPUT:\n{correct_SOn(m1)}\n")
+
+    m2 = np.array([[1, 2, 3],
+                [4, 5, 6],
+                [7, 8, 9]]) 
+    print(f"INPUT:\n{m2} \nFUNCTION: correct_SOn(input) \nOUTPUT:\n{correct_SOn(m2)}\n")
+
+
+    m3 = np.array([[0, -1, 0],
+                [1, 0, 0],
+                [0, 0, 1]])  # 2D rotation matrix, should return itself
+    print(f"INPUT:\n{m3} \nFUNCTION: correct_SEn(input) \nOUTPUT:\n{correct_SEn(m3)}\n")
+
+    m4 = np.array([[3, 2, 4],
+                [2, 3, 2],
+                [0, 1, 1]])
+    print(f"INPUT:\n{m4} \nFUNCTION: correct_SEn(input) \nOUTPUT:\n{correct_SEn(m4)}\n")
+
+    v1 = np.array([1, 0, 0, 0])
+    print(f"INPUT:\n{v1} \nFUNCTION: correct_quaternion(input) \nOUTPUT:\n{correct_quaternion(v1)}\n")
+
+    v2 = np.array([2, 2, 0, 0]) 
+    print(f"INPUT:\n{v2} \nFUNCTION: correct_quaternion(input) \nOUTPUT:\n{correct_quaternion(v2)}\n")
+
+    v3 = np.array([10, 10, 10, 10])
+    print(f"INPUT:\n{v3} \nFUNCTION: correct_quaternion(input) \nOUTPUT:\n{correct_quaternion(v3)}\n")
+
 
