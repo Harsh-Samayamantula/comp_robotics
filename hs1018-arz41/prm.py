@@ -1,34 +1,24 @@
-import os
 import numpy as np
 import matplotlib.pyplot as plt
-import random
-from component_5 import scene_from_file
-from component_6 import nearest_neighbors  # Import the nearest_neighbors function
-from component_7 import check_collision
 import networkx as nx
+import argparse
+from environment import scene_from_file
+from nearest_neighbors import nearest_neighbors, distance
+from collision_checking import check_collision
 
 def sample_config(robot_type):
     if robot_type == "arm":
         return np.random.uniform(-np.pi, np.pi, 2)
     elif robot_type == "freeBody":
         return np.array([np.random.uniform(-10, 10), np.random.uniform(-10, 10), np.random.uniform(-np.pi, np.pi)])
-    else:
-        raise ValueError("Invalid robot type")
-
-def distance(config1, config2, robot_type):
-    if robot_type == "arm":
-        return np.linalg.norm(np.array(config1) - np.array(config2))
-    elif robot_type == "freeBody":
-        pos_dist = np.linalg.norm(np.array(config1[:2]) - np.array(config2[:2]))
-        angle_dist = min(abs(config1[2] - config2[2]), 2*np.pi - abs(config1[2] - config2[2]))
-        return pos_dist + angle_dist
-    else:
-        raise ValueError("Invalid robot type")
 
 def is_collision_free(config, environment, robot_type):
-    # Implement collision checking based on robot type and environment
-    # This is a placeholder and needs to be implemented based on your specific robots and collision checking method
-    return True  # Replace with actual collision checking
+    if robot_type == "arm":
+        # Implement arm collision checking
+        return True
+    elif robot_type == "freeBody":
+        robot = {'position': config[:2], 'width': 0.5, 'height': 0.5}
+        return not any(check_collision(robot, obstacle) for obstacle in environment)
 
 def build_prm(robot_type, environment, n_samples=5000, k=6):
     graph = nx.Graph()
@@ -41,7 +31,6 @@ def build_prm(robot_type, environment, n_samples=5000, k=6):
             graph.add_node(len(samples) - 1, config=config)
     
     for i, sample in enumerate(samples):
-        # Use the nearest_neighbors function from component_6.py
         neighbors = nearest_neighbors(robot_type, sample, k, samples)
         for j in neighbors:
             if not graph.has_edge(i, j):
@@ -63,14 +52,11 @@ def find_path(graph, start_config, goal_config, robot_type, samples):
 def visualize_prm(graph, samples, path=None, robot_type="arm"):
     plt.figure(figsize=(10, 10))
     
-    # Plot edges
     pos = {i: sample[:2] for i, sample in enumerate(samples)}
     nx.draw_networkx_edges(graph, pos, alpha=0.1)
     
-    # Plot nodes
     plt.scatter([s[0] for s in samples], [s[1] for s in samples], c='b', s=10)
     
-    # Plot path if available
     if path:
         path_x, path_y = zip(*[(p[0], p[1]) for p in path])
         plt.plot(path_x, path_y, 'r-', linewidth=2)
@@ -82,26 +68,9 @@ def visualize_prm(graph, samples, path=None, robot_type="arm"):
 
 def animate_solution(path, robot_type, environment):
     # Implement animation of the solution path
-    # This is a placeholder and needs to be implemented based on your specific visualization requirements
     pass
 
-def main(robot_type, start_config, goal_config, map_file):
-    environment = scene_from_file(map_file)
-    
-    graph, samples = build_prm(robot_type, environment)
-    path = find_path(graph, start_config, goal_config, robot_type, samples)
-    
-    if path:
-        print("Path found!")
-        visualize_prm(graph, samples, path, robot_type)
-        animate_solution(path, robot_type, environment)
-    else:
-        print("No path found.")
-        visualize_prm(graph, samples, robot_type=robot_type)
-
 if __name__ == "__main__":
-    import argparse
-    
     parser = argparse.ArgumentParser(description="PRM Path Planning")
     parser.add_argument("--robot", type=str, choices=["arm", "freeBody"], required=True, help="Robot type")
     parser.add_argument("--start", type=float, nargs='+', required=True, help="Start configuration")
@@ -110,4 +79,14 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    main(args.robot, args.start, args.goal, args.map)
+    environment = scene_from_file(args.map)
+    graph, samples = build_prm(args.robot, environment)
+    path = find_path(graph, args.start, args.goal, args.robot, samples)
+    
+    if path:
+        print("Path found!")
+        visualize_prm(graph, samples, path, args.robot)
+        animate_solution(path, args.robot, environment)
+    else:
+        print("No path found.")
+        visualize_prm(graph, samples, robot_type=args.robot)
