@@ -27,7 +27,7 @@ def generate_arm_configs(num_configs, filename):
 def load_configs(filename):
     path = os.path.join('configs', filename)
     with open(path, 'r') as f:
-        configs = [list(map(float, line.strip().split())) for line in f]
+        configs = [np.array(list(map(float, line.strip().split()))) for line in f]
     return configs
 
 def euclidean_distance(start, end):
@@ -46,18 +46,19 @@ def toroidal_distance(config, target):
     
     return np.sqrt(d_theta0 ** 2 + d_theta1 ** 2)
 
-def nearest_neighbors(args, configs):
+# def nearest_neighbors(args, configs):
+def nearest_neighbors(robot_type, target, configurations, k):
     distances = []
-    if args.robot == 'freeBody':
+    if robot_type == 'freeBody':
         # Compute using Euclidean Distance
-        for config in configs:
-            distances.append((config, euclidean_distance(config, args.target)))
+        for index, config in enumerate(configurations):
+            distances.append((index, config, euclidean_distance(config, target)))
     else: # robot = 'arm'
         # Compute using angular euclidean function
-        for config in configs:
-            distances.append((config, toroidal_distance(config, args.target)))
-    distances.sort(key=lambda x: x[1])
-    return distances[:args.k]
+        for index, config in enumerate(configurations):
+            distances.append((index, config, toroidal_distance(config, target)))
+    distances.sort(key=lambda x: x[2])
+    return distances[:k]
 
 def visualize(distances, target, robot_type):
     fig, ax = plt.subplots()
@@ -71,7 +72,7 @@ def visualize(distances, target, robot_type):
         target_rect = Rectangle((target[0] - 0.25, target[1] - 0.15), 0.5, 0.3, angle=target[2], color='red')
         ax.add_patch(target_rect)
         
-        for config, _ in distances:
+        for _, config, _ in distances:
             rect = Rectangle((config[0] - 0.25, config[1] - 0.15), 0.5, 0.3, angle=config[2], color='blue', alpha=0.5)
             ax.add_patch(rect)
 
@@ -86,7 +87,7 @@ def visualize(distances, target, robot_type):
 
         plot_arm(ax, target, link1_length, link2_length, 'red')
 
-        for config, _ in distances:
+        for _, config, _ in distances:
             plot_arm(ax, config, link1_length, link2_length, 'blue', alpha=0.5)
         
         plt.title(f'Nearest Neighbors Visualization - Arm')
@@ -115,7 +116,8 @@ def main():
 
     args = parser.parse_args()
     configs = load_configs(args.configs)
-    neighbors = nearest_neighbors(args, configs)
+    # neighbors = nearest_neighbors(args, configs)
+    neighbors = nearest_neighbors(args.robot, args.target, configs, args.k)
     
     for neighbor in neighbors:
         print(f"Configuration: {neighbor[0]}, Distance: {neighbor[1]}")
