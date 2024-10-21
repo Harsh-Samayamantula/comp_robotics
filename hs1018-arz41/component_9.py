@@ -1,174 +1,116 @@
+import os
 import numpy as np
-import argparse
 import matplotlib.pyplot as plt
 import random
-from matplotlib.patches import Rectangle, Circle
-from collections import namedtuple
-import math
+from component_5 import *
+from component_6 import *
+from component_7 import *
+import networkx as nx
 
-# Named tuple for a Node in the RRT
-Node = namedtuple('Node', ['config', 'parent'])
+def sample_config_rrt(robot_type, goal_config=None, goal_bias=0.05):
+    if random.random() < goal_bias and goal_config is not None:
+        return goal_config
+    if robot_type == "arm":
+        return np.random.uniform(0, 2*np.pi, 2)  # Two angles for arm
+    elif robot_type == "freeBody":
+        return np.array([np.random.uniform(-10, 10), np.random.uniform(-10, 10), random.uniform(0, 2 * np.pi)])
+    else:
+        raise ValueError("Invalid robot type")
 
-def euclidean_distance(q1, q2):
-    """Calculate Euclidean distance between two points."""
-    return np.linalg.norm(np.array(q1) - np.array(q2))
+def extend(tree, nearest_node, random_sample, step_size=0.1):
+    """Extend the tree by moving from nearest_node towards random_sample with a certain step size."""
+    direction = random_sample - nearest_node
+    norm = np.linalg.norm(direction)
+    if norm > step_size:
+        direction = direction / norm * step_size  # Limit the step size
+    new_config = nearest_node + direction
+    return new_config
 
-def steer(q_nearest, q_rand, step_size):
-    """Steer from nearest node towards the random node within a step size."""
-    direction = np.array(q_rand) - np.array(q_nearest)
-    length = np.linalg.norm(direction)
-    direction = direction / length  # Normalize the direction
-    return tuple(np.array(q_nearest) + step_size * direction)
-
-def random_config(robot_type, bounds):
-    """Generate a random configuration in the robot's configuration space."""
-    if robot_type == 'freeBody':
-        return (random.uniform(bounds[0][0], bounds[0][1]),
-                random.uniform(bounds[1][0], bounds[1][1]),
-                random.uniform(-np.pi, np.pi))  # Random pose (x, y, theta)
-    elif robot_type == 'arm':
-        return (random.uniform(-np.pi, np.pi), random.uniform(-np.pi, np.pi))  # Random angles for arm
-
-def collision_check(robot, obstacle):
-    """
-    Check for collision between the robot and an obstacle.
-    We are using simple axis-aligned bounding box (AABB) logic here for simplicity.
-    """
-    rx, ry = robot['position']
-    rw, rh = robot['width'], robot['height']
+def build_rrt(robot_type, start_config, goal_config, environment, goal_radius=0.1, max_nodes=1000):
+    tree = nx.Graph()
+    tree.add_node(0, config=start_config)
     
-    ox, oy = obstacle['position']
-    ow, oh = obstacle['width'], obstacle['height']
-    
-    # Check if the robot's bounding box overlaps with the obstacle's bounding box
-    if (rx < ox + ow/2 and rx + rw/2 > ox - ow/2 and 
-        ry < oy + oh/2 and ry + rh/2 > oy - oh/2):
-        return True
-    return False
-
-def load_obstacles(map_file):
-    """
-    Load obstacles from the environment file.
-    The file is expected to contain rectangular obstacles defined by position, width, and height.
-    """
-    obstacles = []
-    with open(map_file, 'r') as f:
-        for line in f:
-            parts = list(map(float, line.strip().split()))
-            obstacle = {'position': (parts[0], parts[1]), 'width': parts[2], 'height': parts[3]}
-            obstacles.append(obstacle)
-    return obstacles
-
-def nearest_node(tree, q_rand):
-    """Find the nearest node in the tree to the random configuration."""
-    min_dist = float('inf')
-    nearest = None
-    for node in tree:
-        dist = euclidean_distance(node.config, q_rand)
-        if dist < min_dist:
-            min_dist = dist
-            nearest = node
-    return nearest
-
-def is_goal_reached(node, goal, goal_radius):
-    """Check if the current node is within the goal radius."""
-    return euclidean_distance(node.config, goal) < goal_radius
-
-def rrt(robot_type, start, goal, goal_radius, map_file, step_size=0.2, max_iterations=1000, goal_sample_rate=0.05):
-    """
-    Run the RRT algorithm to find a path from start to goal while avoiding obstacles.
-    """
-    obstacles = load_obstacles(map_file)
-    bounds = [(-10, 10), (-10, 10)]  # Bounds for the freeBody robot's x and y space
-
-    # Initialize the tree with the start configuration
-    tree = [Node(config=start, parent=None)]
-    
-    for iteration in range(max_iterations):
-        # Sample random configuration with a probability of sampling the goal
-        if random.random() < goal_sample_rate:
-            q_rand = goal
-        else:
-            q_rand = random_config(robot_type, bounds)
+    for i in range(1, max_nodes):
+        # Sample a new configuration
+        random_sample = sample_config_rrt(robot_type, goal_config)
         
-        # Find nearest node in the tree to q_rand
-        q_nearest = nearest_node(tree, q_rand)
-
-        # Steer towards q_rand, within step size
-        q_new = steer(q_nearest.config, q_rand, step_size)
-
-        # Check for collisions before adding the new node
-        robot = {'position': q_new[:2], 'width': 0.5, 'height': 0.3}
-        if any(check_collision(robot, obs) for obs in obstacles):
-            continue  # Collision detected, skip this node
-
-        # Add new node to the tree
-        tree.append(Node(config=q_new, parent=q_nearest))
-
-        # Check if goal has been reached
-        if is_goal_reached(tree[-1], goal, goal_radius):
-            return tree, tree[-1]  # Return the tree and the goal node
-
-    # If no path is found, return the tree and None
+        # Find the nearest node in the tree
+        nearest_node, nearest_conf, _ = nearest_neighbors(robot_type, random_sample, [n['config'] for _, n in tree.nodes(data=True)], 1)[0]
+        nearest_config = tree.nodes[nearest_node]['config']
+        
+        # Extend the tree towards the sampled configuration
+        new_config = extend(tree.nodes[nearest_node]['config'], random_sample)
+        
+        # Check if the new node is collision-free
+        if is_collision_free(new_config, environment, robot_type):
+            tree.add_node(i, config=new_config)
+            tree.add_edge(nearest_node, i)
+            
+            # Check if we have reached the goal region
+            if np.linalg.norm(new_config - goal_config) < goal_radius:
+                print(f"Goal reached after {i} nodes.")
+                return tree, i
+    
+    print(f"Maximum nodes ({max_nodes}) reached without finding the goal.")
     return tree, None
 
-def visualize_rrt(tree, goal_node, goal, robot_type, obstacles):
-    """
-    Visualize the RRT tree in the configuration space and the path to the goal.
-    """
-    fig, ax = plt.subplots()
+def visualize_rrt(tree, start_config, goal_config, environment, goal_radius=0.1, robot_type="arm"):
+    """Visualize the RRT tree."""
+    plt.figure(figsize=(10, 10))
     
-    # Draw obstacles
-    for obs in obstacles:
-        rect = Rectangle((obs['position'][0] - obs['width']/2, obs['position'][1] - obs['height']/2),
-                         obs['width'], obs['height'], edgecolor='black', facecolor='gray')
-        ax.add_patch(rect)
+    # Obstacles
+    for obstacle in environment:
+        rect = plt.Rectangle((obstacle['position'][0] - obstacle['width']/2, 
+                              obstacle['position'][1] - obstacle['height']/2), 
+                             obstacle['width'], obstacle['height'], 
+                             edgecolor='black', facecolor='lightgrey')
+        plt.gca().add_patch(rect)
     
-    # Draw the RRT tree
-    for node in tree:
-        if node.parent:
-            ax.plot([node.config[0], node.parent.config[0]],
-                    [node.config[1], node.parent.config[1]], 'b-')
-
-    # Draw the path to the goal if it exists
-    if goal_node:
-        path_node = goal_node
-        while path_node.parent:
-            ax.plot([path_node.config[0], path_node.parent.config[0]],
-                    [path_node.config[1], path_node.parent.config[1]], 'r-', linewidth=2)
-            path_node = path_node.parent
+    # Plot the tree
+    for (node1, node2) in tree.edges:
+        config1 = tree.nodes[node1]['config']
+        config2 = tree.nodes[node2]['config']
+        plt.plot([config1[0], config2[0]], [config1[1], config2[1]], 'b-')
     
-    # Draw the goal
-    goal_circle = Circle(goal[:2], radius=goal[2], edgecolor='green', facecolor='none')
-    ax.add_patch(goal_circle)
-
-    ax.set_xlim(-10, 10)
-    ax.set_ylim(-10, 10)
-    ax.set_aspect('equal')
+    # Start and goal
+    plt.scatter(start_config[0], start_config[1], c='g', marker='o', s=100, label="Start")
+    plt.scatter(goal_config[0], goal_config[1], c='r', marker='x', s=100, label="Goal")
+    plt.gca().add_patch(plt.Circle(goal_config[:2], goal_radius, color='red', fill=False, linestyle='--', label="Goal Region"))
+    
+    plt.title(f"RRT for {robot_type}")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.legend()
     plt.show()
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--robot', type=str, required=True, choices=['arm', 'freeBody'])
-    parser.add_argument('--start', type=float, nargs='+', required=True)
-    parser.add_argument('--goal', type=float, nargs='+', required=True)
-    parser.add_argument('--goal_rad', type=float, required=True)
-    parser.add_argument('--map', type=str, required=True)
+def main(robot_type, start_config, goal_config, map_file, goal_radius):
+    environment = scene_from_file(map_file)
+    
+    # Build RRT
+    tree, goal_node = build_rrt(robot_type, np.array(start_config), np.array(goal_config), environment, goal_radius=goal_radius)
+    
+    # Visualize the tree and solution path if found
+    visualize_rrt(tree, start_config, goal_config, environment, goal_radius, robot_type)
+    
+    if goal_node is not None:
+        # Backtrack the path from goal to start
+        path = nx.shortest_path(tree, source=0, target=goal_node)
+        animate_solution([tree.nodes[node]['config'] for node in path], robot_type, environment)
+
+def animate_solution(path, robot_type, environment):
+    # Placeholder for animation implementation
+    pass
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="RRT Path Planning")
+    parser.add_argument("--robot", type=str, choices=["arm", "freeBody"], required=True, help="Robot type")
+    parser.add_argument("--start", type=float, nargs='+', required=True, help="Start configuration")
+    parser.add_argument("--goal", type=float, nargs='+', required=True, help="Goal configuration")
+    parser.add_argument("--goal_rad", type=float, required=True, help="Goal radius")
+    parser.add_argument("--map", type=str, required=True, help="Map file")
     
     args = parser.parse_args()
-
-    # Run the RRT algorithm
-    tree, goal_node = rrt(
-        robot_type=args.robot,
-        start=tuple(args.start),
-        goal=tuple(args.goal),
-        goal_radius=args.goal_rad,
-        map_file=args.map
-    )
-
-    # Visualize the result
-    obstacles = load_obstacles(args.map)
-    visualize_rrt(tree, goal_node, tuple(args.goal) + (args.goal_rad,), args.robot, obstacles)
-
-if __name__ == '__main__':
-    main()
+    
+    main(args.robot, args.start, args.goal, args.map, args.goal_rad)

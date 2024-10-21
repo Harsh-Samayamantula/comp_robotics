@@ -15,20 +15,6 @@ def sample_config(robot_type):
     else:
         raise ValueError("Invalid robot type")
 
-# def distance(config1, config2, robot_type):
-#     if robot_type == "arm":
-#         return np.linalg.norm(np.array(config1) - np.array(config2))
-#     elif robot_type == "freeBody":
-#         pos_dist = np.linalg.norm(np.array(config1[:2]) - np.array(config2[:2]))
-#         angle_dist = min(abs(config1[2] - config2[2]), 2*np.pi - abs(config1[2] - config2[2]))
-#         return pos_dist + angle_dist
-#     else:
-#         raise ValueError("Invalid robot type")
-
-# def is_collision_free(config, environment, robot_type):
-#     # Implement collision checking based on robot type and environment
-#     # This is a placeholder and needs to be implemented based on your specific robots and collision checking method
-#     return True  # Replace with actual collision checking
 
 def build_prm(robot_type, environment, n_samples=5000, k=6):
     graph = nx.Graph()
