@@ -17,39 +17,41 @@ def sample_config_rrt(robot_type, goal_config=None, goal_bias=0.05):
     else:
         raise ValueError("Invalid robot type")
 
-def extend(tree, nearest_node, random_sample, step_size=0.1):
-    """Extend the tree by moving from nearest_node towards random_sample with a certain step size."""
-    direction = random_sample - nearest_node
+def extend(nearest_node, random_sample, step_size=0.4):
+    
+    direction = np.array(random_sample) - np.array(nearest_node)
     norm = np.linalg.norm(direction)
     if norm > step_size:
         direction = direction / norm * step_size  # Limit the step size
     new_config = nearest_node + direction
     return new_config
 
+
 def build_rrt(robot_type, start_config, goal_config, environment, goal_radius=0.1, max_nodes=1000):
     tree = nx.Graph()
     tree.add_node(0, config=start_config)
+
+    i = 1
+    while tree.number_of_nodes() < max_nodes:
     
-    for i in range(1, max_nodes):
-        # Sample a new configuration
         random_sample = sample_config_rrt(robot_type, goal_config)
         
-        # Find the nearest node in the tree
-        nearest_node, nearest_conf, _ = nearest_neighbors(robot_type, random_sample, [n['config'] for _, n in tree.nodes(data=True)], 1)[0]
-        nearest_config = tree.nodes[nearest_node]['config']
+
+        configurations = [node['config'] for index, node in tree.nodes(data=True)]
+        nearest_node, nearest_conf, _ = nearest_neighbors(robot_type, random_sample, configurations, 1, debug=False)[0]
         
-        # Extend the tree towards the sampled configuration
-        new_config = extend(tree.nodes[nearest_node]['config'], random_sample)
+        new_config = extend(nearest_conf, random_sample)
         
-        # Check if the new node is collision-free
-        if is_collision_free(new_config, environment, robot_type):
-            tree.add_node(i, config=new_config)
-            tree.add_edge(nearest_node, i)
-            
-            # Check if we have reached the goal region
-            if np.linalg.norm(new_config - goal_config) < goal_radius:
-                print(f"Goal reached after {i} nodes.")
-                return tree, i
+        if collision_free_conf(robot_type, new_config, environment, debug=False):
+            if is_collision_free((nearest_conf, new_config), environment, robot_type):
+                tree.add_node(i, config=new_config)
+                tree.add_edge(nearest_node, i)                
+                
+                if np.linalg.norm(new_config - goal_config) < goal_radius:
+                    print(f"Goal reached after {i} nodes.")
+                    return tree, i
+                i+=1
+
     
     print(f"Maximum nodes ({max_nodes}) reached without finding the goal.")
     return tree, None
@@ -83,11 +85,15 @@ def visualize_rrt(tree, start_config, goal_config, environment, goal_radius=0.1,
     plt.legend()
     plt.show()
 
+
 def main(robot_type, start_config, goal_config, map_file, goal_radius):
     environment = scene_from_file(map_file)
     
+    if not collision_free_conf(robot_type, start_config, environment, debug=False):
+        raise ValueError("Invalid starting configuration for robot")
+        
     # Build RRT
-    tree, goal_node = build_rrt(robot_type, np.array(start_config), np.array(goal_config), environment, goal_radius=goal_radius)
+    tree, goal_node = build_rrt(robot_type, start_config, goal_config, environment, goal_radius=goal_radius)
     
     # Visualize the tree and solution path if found
     visualize_rrt(tree, start_config, goal_config, environment, goal_radius, robot_type)
@@ -95,6 +101,9 @@ def main(robot_type, start_config, goal_config, map_file, goal_radius):
     if goal_node is not None:
         # Backtrack the path from goal to start
         path = nx.shortest_path(tree, source=0, target=goal_node)
+        print('Path found!')
+        path_configurations = [tree.nodes[node]['config'] for node in path]
+        print(path_configurations)
         animate_solution([tree.nodes[node]['config'] for node in path], robot_type, environment)
 
 def animate_solution(path, robot_type, environment):

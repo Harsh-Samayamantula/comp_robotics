@@ -210,9 +210,13 @@ def is_collision_free(path, environment, robot_type):
     elif robot_type == 'arm':
         # Interpolate between the start and goal for arm
         robot_path = interpolate_arm(start, goal)
+        
     
     # Check if all configurations along the path are collision-free
+    # print(f'ROBOT PATH {start} {goal}')
+    # print(robot_path)
     for config in robot_path:
+        # print(f'Checking {config}')
         if not collision_free_conf(robot_type, config, environment):
             return False
     
