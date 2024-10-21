@@ -47,17 +47,21 @@ def toroidal_distance(config, target):
     return np.sqrt(d_theta0 ** 2 + d_theta1 ** 2)
 
 # def nearest_neighbors(args, configs):
-def nearest_neighbors(robot_type, target, configurations, k):
+def nearest_neighbors(robot_type, target, configurations, k, debug=False):
+    if debug: print('Configurations Provided', len(configurations))
     distances = []
     if robot_type == 'freeBody':
         # Compute using Euclidean Distance
         for index, config in enumerate(configurations):
             distances.append((index, config, euclidean_distance(config, target)))
+            if debug: print('Index', index, 'Config', config)
     else: # robot = 'arm'
         # Compute using angular euclidean function
         for index, config in enumerate(configurations):
             distances.append((index, config, toroidal_distance(config, target)))
     distances.sort(key=lambda x: x[2])
+    if debug: print('Len of distances', len(distances))
+    if debug: print(distances[:k])
     return distances[:k]
 
 def visualize(distances, target, robot_type):

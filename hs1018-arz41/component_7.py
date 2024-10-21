@@ -33,12 +33,14 @@ def get_corners(position, width, height, orientation):
     
     return translated_corners
 
-def check_collision(robot, obstacle):
+def check_collision(robot, obstacle, arm=False):
     """
     Check for collision between the robot and an obstacle, taking into account the robot's orientation.
     The robot is treated as a rotated rectangle and the obstacle as an axis-aligned bounding box (AABB).
     """
-    robot_corners = get_corners(robot['position'], robot['width'], robot['height'], robot['orientation'])
+    robot_corners = ''
+    if not arm: robot_corners = get_corners((robot[0], robot[1]), 0.5, 0.3, robot[2])
+    else: robot_corners = get_corners((robot['position'][0], robot['position'][1]), robot['width'], robot['height'], robot['orientation'])
     
     ox, oy = obstacle['position']
     ow, oh = obstacle['width'], obstacle['height']
@@ -168,27 +170,29 @@ def get_link_boxes(arm_positions, theta0, theta1):
     return [link1_box, link2_box]
 
 
-def collision_free_conf(robot_type, robot_configuration, environment):
+def collision_free_conf(robot_type, robot_configuration, environment, debug=False):
     if robot_type == 'freeBody':
         for i, obstacle in enumerate(environment):
-            if not check_collision(robot_configuration, obstacle):
+            if check_collision(robot_configuration, obstacle):
                 return False
         return True
     if robot_type == 'arm':
         # Check collision at configuration of arm
          # robot_configuration should be a tuple of joint angles (theta0, theta1)
+        if debug: print('Robot Config:', robot_configuration)
         theta0, theta1 = robot_configuration
         
         # Get the positions of the links using forward kinematics
         arm_positions = forward_kinematics(theta0, theta1)
+        if debug: print(arm_positions)
         
         # Get the link boxes (rectangular representations of the links)
-        link_boxes = get_link_boxes(arm_positions)
-        
+        link_boxes = get_link_boxes(arm_positions, theta0, theta1)
+        if debug: print(link_boxes)
         # Check if either link collides with any obstacle
         for obstacle in environment:
             for link_box in link_boxes:
-                if check_collision(link_box, obstacle):  # Check collision for each link box
+                if check_collision(link_box, obstacle, arm=True):  # Check collision for each link box
                     return False
         
         return True

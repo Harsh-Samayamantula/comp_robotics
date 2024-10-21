@@ -16,15 +16,19 @@ def sample_config(robot_type):
         raise ValueError("Invalid robot type")
 
 
-def build_prm(robot_type, environment, n_samples=5000, k=6):
+def build_prm(robot_type, environment, n_samples=5000, k=6, debug=False):
     graph = nx.Graph()
     samples = []
     
     for _ in range(n_samples):
         config = sample_config(robot_type)
-        if is_collision_free(config, environment, robot_type):
+        # if is_collision_free(config, environment, robot_type):
+        if debug: print('Config Passed In:', config)
+        if collision_free_conf(robot_type, config, environment, debug=debug):
             samples.append(config)
             graph.add_node(len(samples) - 1, config=config)
+            if debug: print('Samples Passed In:', len(samples))
+            
     
     for i, sample in enumerate(samples):
         # Use the nearest_neighbors function from component_6.py
@@ -33,13 +37,13 @@ def build_prm(robot_type, environment, n_samples=5000, k=6):
             if not graph.has_edge(i, index):
                 if is_collision_free((sample, samples[index]), environment, robot_type):
                     graph.add_edge(i, index, weight=dist)
-    
+    # if debug: print('Len of Samples', len(samples))
     return graph, samples
 
 def find_path(graph, start_config, goal_config, robot_type, samples):
     # start_node = min(range(len(samples)), key=lambda i: distance(samples[i], start_config, robot_type))
-    s_node, s_conf, s_dist = nearest_neighbors(robot_type, start_config, samples, 1)
-    g_node, g_conf, g_dist = nearest_neighbors(robot_type, goal_config, samples, 1)
+    s_node, s_conf, s_dist = nearest_neighbors(robot_type, start_config, samples, 1, debug=False)[0]
+    g_node, g_conf, g_dist = nearest_neighbors(robot_type, goal_config, samples, 1)[0]
     # goal_node = min(range(len(samples)), key=lambda i: distance(samples[i], goal_config, robot_type))
     
     try:
@@ -84,11 +88,12 @@ def animate_solution(path, robot_type, environment):
 def main(robot_type, start_config, goal_config, map_file):
     environment = scene_from_file(map_file)
     
-    graph, samples = build_prm(robot_type, environment)
+    graph, samples = build_prm(robot_type, environment, debug=False)
     path = find_path(graph, start_config, goal_config, robot_type, samples)
     
     if path:
         print("Path found!")
+        print(path)
         visualize_prm(graph, samples, environment, path, robot_type)
         animate_solution(path, robot_type, environment)
     else:
