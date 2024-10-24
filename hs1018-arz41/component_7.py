@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 from matplotlib.patches import Polygon, Rectangle
+from component_6 import *
 from component_5 import *
 from component_4 import *
 from component_3 import *
@@ -83,7 +84,7 @@ def polygons_collide(polygon1, polygon2):
     # If all projections overlap, the polygons collide
     return True
 
-def visualize_scene_with_collisions(environment, robot, colliding_indices):
+def visualize_scene_with_collisions(environment, robot, colliding_indices, robot_type):
     """
     Visualize the environment and robot. Colliding obstacles are red, non-colliding obstacles are green.
     """
@@ -96,13 +97,21 @@ def visualize_scene_with_collisions(environment, robot, colliding_indices):
         obs = Polygon(obstacle_corners, edgecolor='black', facecolor=color)
         ax.add_patch(obs)
     
-    # Draw robot
-    robot_corners = get_corners(robot['position'], robot['width'], robot['height'], robot['orientation'])
-    rbt = Polygon(robot_corners, edgecolor='blue', facecolor='none')
-    ax.add_patch(rbt)
+    # # Draw robot
+    # robot_corners = get_corners(robot['position'], robot['width'], robot['height'], robot['orientation'])
+    # rbt = Polygon(robot_corners, edgecolor='blue', facecolor='none')
+    # ax.add_patch(rbt)
+
+    if robot_type == 'freeBody':
+        robot_corners = get_corners(robot['position'], robot['width'], robot['height'], robot['orientation'])
+        rbt = Polygon(robot_corners, edgecolor='blue', facecolor='none')
+        ax.add_patch(rbt)
+    elif robot_type == 'arm':
+        link1_length, link2_length = 2, 1.5  # Assuming fixed lengths
+        plot_arm(ax, robot, link1_length, link2_length, 'blue')
     
-    ax.set_xlim(0, 20)
-    ax.set_ylim(0, 20)
+    ax.set_xlim(-10, 10)
+    ax.set_ylim(-10, 10)
     ax.set_aspect('equal')
     plt.show()
 
@@ -214,7 +223,7 @@ def is_collision_free(path, environment, robot_type):
     return True
 
 
-def collision_checking(environment_file):
+def collision_checking(environment_file, robot_type):
     """
     Perform collision checking by placing the robot randomly for 10 seconds and checking for collisions.
     """
@@ -223,36 +232,64 @@ def collision_checking(environment_file):
     
     robot_size = (0.5, 0.3)  # Robot dimensions (width, height)
     
-    # Perform 10 random poses of the robot (1 pose per second)
-    for _ in range(10):
-        # Random pose for the robot
-        robot_position = (random.uniform(0, 20), random.uniform(0, 20))
-        robot_orientation = random.uniform(0, 2 * math.pi)  # Random orientation in radians
-        robot = {'position': robot_position, 'width': robot_size[0], 'height': robot_size[1], 'orientation': robot_orientation}
-        
-        # Check for collisions with all obstacles
-        colliding_indices = []
-        for i, obstacle in enumerate(environment):
-            if check_collision(robot, obstacle):
-                colliding_indices.append(i)
-        
-        # Visualize the environment with collision indication
-        visualize_scene_with_collisions(environment, robot, colliding_indices)
+    if robot_type == 'freeBody':
+        robot_size = (0.5, 0.3)  # Robot dimensions (width, height)
+
+        # Perform 10 random poses of the robot (1 pose per second)
+        for _ in range(10):
+            # Random pose for the robot
+            robot_position = (random.uniform(-10, 10), random.uniform(-10, 10))
+            robot_orientation = random.uniform(0, 2 * math.pi)  # Random orientation in radians
+            robot = {'position': robot_position, 'width': robot_size[0], 'height': robot_size[1], 'orientation': robot_orientation}
+
+            # Check for collisions with all obstacles
+            colliding_indices = []
+            for i, obstacle in enumerate(environment):
+                if check_collision(robot, obstacle):
+                    colliding_indices.append(i)
+
+            # Visualize the environment with collision indication
+            visualize_scene_with_collisions(environment, robot, colliding_indices, robot_type)
+
+    elif robot_type == 'arm':
+        # Perform 10 random arm configurations
+        for _ in range(10):
+            # Random joint angles for the arm
+            theta0 = random.uniform(0, 2 * np.pi)
+            theta1 = random.uniform(0, 2 * np.pi)
+            robot_configuration = (theta0, theta1)
+
+            # Get the positions of the links using forward kinematics
+            arm_positions = forward_kinematics(theta0, theta1)
+
+            # Get the link boxes (rectangular representations of the links)
+            link_boxes = get_link_boxes(arm_positions, theta0, theta1)
+
+            # Check for collisions with all obstacles
+            colliding_indices = []
+            for i, obstacle in enumerate(environment):
+                for link_box in link_boxes:
+                    if check_collision(link_box, obstacle, arm=True):  # Check collision for each link box
+                        colliding_indices.append(i)
+                        break  # No need to check other links if one collides
+
+            # Visualize the environment with collision indication
+            visualize_scene_with_collisions(environment, robot_configuration, colliding_indices, robot_type)
 
 def main():
     parser = argparse.ArgumentParser(description="Process a map argument.")
     
     # Adding the --map argument
-    parser.add_argument('--map', type=str, help='Path to the map file or description')
+    parser.add_argument('--map', type=str, required=True, help='Path to the map file or description')
+
+    # Adding the --robot argument
+    parser.add_argument('--robot', type=str, choices=['freeBody', 'arm'], required=True, help='Type of robot (freeBody or arm)')
 
     # Parse the arguments
     args = parser.parse_args()
     
-    # Run collision checking with the specified environment file
-    if args.map:
-        collision_checking(args.map)
-    else:
-        print("No map argument provided. Running on \"environment_4.txt\"")
+    # Run collision checking with the specified environment file and robot type
+    collision_checking(args.map, args.robot)
 
 if __name__ == '__main__':
     main()
