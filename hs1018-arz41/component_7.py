@@ -1,4 +1,5 @@
 import os
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import random
@@ -35,18 +36,10 @@ def get_corners(position, width, height, orientation):
 
 def check_collision(robot, obstacle, arm=False):
     """
-    Check for collision between the robot and an obstacle, taking into account the robot's orientation.
-    The robot is treated as a rotated rectangle and the obstacle as an axis-aligned bounding box (AABB).
+    Check for collision using the Separating Axis Theorem (SAT) for rotated rectangles and AABB
     """
-    robot_corners = ''
-    if not arm: robot_corners = get_corners((robot[0], robot[1]), 0.5, 0.3, robot[2])
-    else: robot_corners = get_corners((robot['position'][0], robot['position'][1]), robot['width'], robot['height'], robot['orientation'])
-    
-    ox, oy = obstacle['position']
-    ow, oh = obstacle['width'], obstacle['height']
-    
-    # Check for collision using the Separating Axis Theorem (SAT) for rotated rectangles and AABB
-    obstacle_corners = [(ox - ow/2, oy - oh/2), (ox + ow/2, oy - oh/2), (ox + ow/2, oy + oh/2), (ox - ow/2, oy + oh/2)]
+    robot_corners = get_corners(robot['position'], robot['width'], robot['height'], robot['orientation'])
+    obstacle_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
     
     return polygons_collide(robot_corners, obstacle_corners)
 
@@ -99,19 +92,17 @@ def visualize_scene_with_collisions(environment, robot, colliding_indices):
     # Draw obstacles and color them based on collision status
     for i, obstacle in enumerate(environment):
         color = 'red' if i in colliding_indices else 'green'
-        rect = Rectangle((obstacle['position'][0] - obstacle['width']/2, 
-                          obstacle['position'][1] - obstacle['height']/2), 
-                         obstacle['width'], obstacle['height'], 
-                         edgecolor='black', facecolor=color)
-        ax.add_patch(rect)
+        obstacle_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
+        obs = Polygon(obstacle_corners, edgecolor='black', facecolor=color)
+        ax.add_patch(obs)
     
     # Draw robot
     robot_corners = get_corners(robot['position'], robot['width'], robot['height'], robot['orientation'])
-    polygon = Polygon(robot_corners, edgecolor='blue', facecolor='none')
-    ax.add_patch(polygon)
+    rbt = Polygon(robot_corners, edgecolor='blue', facecolor='none')
+    ax.add_patch(rbt)
     
-    ax.set_xlim(-10, 10)
-    ax.set_ylim(-10, 10)
+    ax.set_xlim(0, 20)
+    ax.set_ylim(0, 20)
     ax.set_aspect('equal')
     plt.show()
 
@@ -235,7 +226,7 @@ def collision_checking(environment_file):
     # Perform 10 random poses of the robot (1 pose per second)
     for _ in range(10):
         # Random pose for the robot
-        robot_position = (random.uniform(-10, 10), random.uniform(-10, 10))
+        robot_position = (random.uniform(0, 20), random.uniform(0, 20))
         robot_orientation = random.uniform(0, 2 * math.pi)  # Random orientation in radians
         robot = {'position': robot_position, 'width': robot_size[0], 'height': robot_size[1], 'orientation': robot_orientation}
         
@@ -248,6 +239,20 @@ def collision_checking(environment_file):
         # Visualize the environment with collision indication
         visualize_scene_with_collisions(environment, robot, colliding_indices)
 
-if __name__ == '__main__':
+def main():
+    parser = argparse.ArgumentParser(description="Process a map argument.")
+    
+    # Adding the --map argument
+    parser.add_argument('--map', type=str, help='Path to the map file or description')
+
+    # Parse the arguments
+    args = parser.parse_args()
+    
     # Run collision checking with the specified environment file
-    collision_checking('environment_4.txt')  # Modify the filename as needed
+    if args.map:
+        collision_checking(args.map)
+    else:
+        print("No map argument provided. Running on \"environment_4.txt\"")
+
+if __name__ == '__main__':
+    main()
