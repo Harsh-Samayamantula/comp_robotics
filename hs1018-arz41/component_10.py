@@ -5,6 +5,7 @@ import random
 from component_5 import *
 from component_6 import *
 from component_7 import *
+from component_8 import *
 import networkx as nx
 
 def sample_config_rrt(robot_type, goal_config=None, goal_bias=0.05):
@@ -76,11 +77,9 @@ def visualize_rrt(tree, start_config, goal_config, environment, goal_radius=0.1,
     
     # Obstacles
     for obstacle in environment:
-        rect = plt.Rectangle((obstacle['position'][0] - obstacle['width']/2, 
-                              obstacle['position'][1] - obstacle['height']/2), 
-                             obstacle['width'], obstacle['height'], 
-                             edgecolor='black', facecolor='lightgrey')
-        plt.gca().add_patch(rect)
+        obs_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
+        obs = plt.Polygon(obs_corners, edgecolor='black', facecolor='green')
+        plt.gca().add_patch(obs)
     
     # Plot the tree
     for (node1, node2) in tree.edges:
@@ -93,7 +92,7 @@ def visualize_rrt(tree, start_config, goal_config, environment, goal_radius=0.1,
     plt.scatter(goal_config[0], goal_config[1], c='r', marker='x', s=100, label="Goal")
     plt.gca().add_patch(plt.Circle(goal_config[:2], goal_radius, color='red', fill=False, linestyle='--', label="Goal Region"))
     
-    plt.title(f"RRT for {robot_type}")
+    plt.title(f"RRT* for {robot_type}")
     plt.xlabel("X")
     plt.ylabel("Y")
     plt.legend()
@@ -119,10 +118,6 @@ def main(robot_type, start_config, goal_config, map_file, goal_radius):
         path_configurations = [tree.nodes[node]['config'] for node in path]
         print(path_configurations)
         animate_solution([tree.nodes[node]['config'] for node in path], robot_type, environment)
-
-def animate_solution(path, robot_type, environment):
-    # Placeholder for animation implementation
-    pass
 
 if __name__ == "__main__":
     import argparse
