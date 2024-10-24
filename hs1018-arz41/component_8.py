@@ -61,18 +61,46 @@ def visualize_prm(graph, samples, environment, path=None, robot_type="arm"):
         obs_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
         obs = plt.Polygon(obs_corners, edgecolor='black', facecolor='green')
         plt.gca().add_patch(obs)
-    
-    # Plot edges
-    pos = {i: sample[:2] for i, sample in enumerate(samples)}
-    nx.draw_networkx_edges(graph, pos, alpha=0.1)
-    
-    # Plot nodes
-    plt.scatter([s[0] for s in samples], [s[1] for s in samples], c='b', s=10)
-    
-    # Plot path if available
-    if path:
-        path_x, path_y = zip(*[(p[0], p[1]) for p in path])
-        plt.plot(path_x, path_y, 'r-', linewidth=2)
+
+    if robot_type == "arm":
+        # Function to calculate the link positions based on joint angles
+        def calculate_link_positions(theta0, theta1):
+            # Base of the first link (fixed at origin)
+            J0 = np.array([0, 0])
+
+            # End of the first link
+            J1 = J0 + rotation_matrix(theta0) @ np.array([2.0, 0])  # Adjust length of link 1
+
+            # End of the second link
+            J2 = J1 + rotation_matrix(theta0 + theta1) @ np.array([1.5, 0])  # Adjust length of link 2
+
+            return J0, J1, J2
+
+        # Visualize the PRM graph with arm configurations (not just points)
+        for node in samples:
+            theta0, theta1 = node
+            J0, J1, J2 = calculate_link_positions(theta0, theta1)
+
+            plt.plot([J0[0], J1[0], J2[0]], [J0[1], J1[1], J2[1]], 'bo-', lw=1)
+
+        # Plot path if available
+        if path:
+            for node in path:
+                theta0, theta1 = node
+                J0, J1, J2 = calculate_link_positions(theta0, theta1)
+                plt.plot([J0[0], J1[0], J2[0]], [J0[1], J1[1], J2[1]], 'ro-', lw=2)
+    else:    
+        # Plot edges
+        pos = {i: sample[:2] for i, sample in enumerate(samples)}
+        nx.draw_networkx_edges(graph, pos, alpha=0.1)
+        
+        # Plot nodes
+        plt.scatter([s[0] for s in samples], [s[1] for s in samples], c='b', s=10)
+        
+        # Plot path if available
+        if path:
+            path_x, path_y = zip(*[(p[0], p[1]) for p in path])
+            plt.plot(path_x, path_y, 'r-', linewidth=2)
     
     plt.title(f"PRM for {robot_type}")
     plt.xlabel("X")
@@ -100,14 +128,10 @@ def animate_solution(path, robot_type, environment):
         path_x, path_y = zip(*[(p[0], p[1]) for p in path])
     
     ax.plot(path_x, path_y, 'r-', linewidth=2, label='Path')
-
+    
     # Set plot limits
-    if robot_type == "arm":
-        ax.set_xlim(-3, 3)
-        ax.set_ylim(-3, 3)
-    else:  # freeBody
-        ax.set_xlim(-10, 10)
-        ax.set_ylim(-10, 10)
+    ax.set_xlim(-10, 10)
+    ax.set_ylim(-10, 10)
 
     ax.set_aspect('equal')
     ax.grid(True)
@@ -115,8 +139,8 @@ def animate_solution(path, robot_type, environment):
     # Initialize plot elements
     if robot_type == "arm":
         # Two lines for the arm links and a point for the end effector
-        line1, = ax.plot([], [], 'ro-', lw=4)  # First link
-        line2, = ax.plot([], [], 'bo-', lw=4)  # Second link
+        line1, = ax.plot([], [], 'r-', lw=4)  # First link
+        line2, = ax.plot([], [], 'b-', lw=4)  # Second link
         end_effector, = ax.plot([], [], 'ko', markersize=8)  # End effector
     else:  # freeBody
         # Initialize a rectangle for the robot's body

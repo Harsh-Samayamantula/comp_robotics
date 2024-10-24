@@ -85,7 +85,20 @@ def visualize_rrt(tree, start_config, goal_config, environment, goal_radius=0.1,
     for (node1, node2) in tree.edges:
         config1 = tree.nodes[node1]['config']
         config2 = tree.nodes[node2]['config']
-        plt.plot([config1[0], config2[0]], [config1[1], config2[1]], 'b-')
+        if robot_type == "arm":
+            # Compute positions of joints for each configuration
+            base = np.array([0, 0])
+            joint1_1 = base + rotation_matrix(config1[0]) @ np.array([1.5, 0])  # First link length
+            end_eff1 = joint1_1 + rotation_matrix(config1[0] + config1[1]) @ np.array([1.0, 0])  # Second link length
+
+            joint1_2 = base + rotation_matrix(config2[0]) @ np.array([1.5, 0])
+            end_eff2 = joint1_2 + rotation_matrix(config2[0] + config2[1]) @ np.array([1.0, 0])
+
+            # Plot arm links for tree edge
+            plt.plot([base[0], joint1_1[0], end_eff1[0]], [base[1], joint1_1[1], end_eff1[1]], 'b-')
+            plt.plot([base[0], joint1_2[0], end_eff2[0]], [base[1], joint1_2[1], end_eff2[1]], 'b-')
+        else:
+            plt.plot([config1[0], config2[0]], [config1[1], config2[1]], 'b-')
     
     # Start and goal
     plt.scatter(start_config[0], start_config[1], c='g', marker='o', s=100, label="Start")
