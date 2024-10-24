@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import random
 from component_5 import *
 from component_6 import *  # Import the nearest_neighbors function
@@ -9,14 +10,14 @@ import networkx as nx
 
 def sample_config(robot_type):
     if robot_type == "arm":
-        return np.random.uniform(0, 2*np.pi, 2)
+        return np.array([np.random.uniform(0, 2*np.pi), np.random.uniform(0, 2*np.pi)])
     elif robot_type == "freeBody":
         return np.array([np.random.uniform(-10, 10), np.random.uniform(-10, 10), random.uniform(0, 2 * np.pi)])
     else:
         raise ValueError("Invalid robot type")
 
 
-def build_prm(robot_type, environment, n_samples=5000, k=6, debug=False):
+def build_prm(robot_type, environment, n_samples=1000, k=6, debug=False):
     graph = nx.Graph()
     samples = []
     
@@ -34,7 +35,7 @@ def build_prm(robot_type, environment, n_samples=5000, k=6, debug=False):
         # Use the nearest_neighbors function from component_6.py
         neighbors = nearest_neighbors(robot_type, sample, samples, k)
         for index, conf, dist in neighbors:
-            if not graph.has_edge(i, index):
+            if not graph.has_edge(i, index) and i != index:
                 if is_collision_free((sample, samples[index]), environment, robot_type):
                     graph.add_edge(i, index, weight=dist)
     # if debug: print('Len of Samples', len(samples))
@@ -57,11 +58,9 @@ def visualize_prm(graph, samples, environment, path=None, robot_type="arm"):
 
     # Obstacles
     for obstacle in environment:
-        rect = plt.Rectangle((obstacle['position'][0] - obstacle['width']/2, 
-                              obstacle['position'][1] - obstacle['height']/2), 
-                             obstacle['width'], obstacle['height'], 
-                             edgecolor='black', facecolor='lightgrey')
-        plt.gca().add_patch(rect)
+        obs_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
+        obs = plt.Polygon(obs_corners, edgecolor='black', facecolor='green')
+        plt.gca().add_patch(obs)
     
     # Plot edges
     pos = {i: sample[:2] for i, sample in enumerate(samples)}
@@ -80,10 +79,95 @@ def visualize_prm(graph, samples, environment, path=None, robot_type="arm"):
     plt.ylabel("Y")
     plt.show()
 
+def rotation_matrix(theta):
+    """Returns the 2D rotation matrix for a given angle theta."""
+    return np.array([[np.cos(theta), -np.sin(theta)],
+                     [np.sin(theta), np.cos(theta)]])
+
 def animate_solution(path, robot_type, environment):
-    # Implement animation of the solution path
-    # This is a placeholder
-    pass
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    # Set up the environment (obstacles)
+    for obstacle in environment:
+        obs_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
+        obs = plt.Polygon(obs_corners, edgecolor='black', facecolor='green')
+        ax.add_patch(obs)
+
+    # Plot the full static path
+    if robot_type == "arm":
+        path_x, path_y = zip(*[(np.cos(p[0]) + np.cos(p[0] + p[1]), np.sin(p[0]) + np.sin(p[0] + p[1])) for p in path])
+    else:  # freeBody robot
+        path_x, path_y = zip(*[(p[0], p[1]) for p in path])
+    
+    ax.plot(path_x, path_y, 'r-', linewidth=2, label='Path')
+
+    # Set plot limits
+    if robot_type == "arm":
+        ax.set_xlim(-3, 3)
+        ax.set_ylim(-3, 3)
+    else:  # freeBody
+        ax.set_xlim(-10, 10)
+        ax.set_ylim(-10, 10)
+
+    ax.set_aspect('equal')
+    ax.grid(True)
+
+    # Initialize plot elements
+    if robot_type == "arm":
+        # Two lines for the arm links and a point for the end effector
+        line1, = ax.plot([], [], 'ro-', lw=4)  # First link
+        line2, = ax.plot([], [], 'bo-', lw=4)  # Second link
+        end_effector, = ax.plot([], [], 'ko', markersize=8)  # End effector
+    else:  # freeBody
+        # Initialize a rectangle for the robot's body
+        body_rect = plt.Rectangle((0, 0), 0.5, 0.3, angle=0, color='blue', alpha=0.5)
+        ax.add_patch(body_rect)
+
+    # Function to initialize the animation
+    def init():
+        if robot_type == "arm":
+            line1.set_data([], [])
+            line2.set_data([], [])
+            end_effector.set_data([], [])
+            return line1, line2, end_effector
+        else:
+            body_rect.set_xy((0, 0))  # Reset the rectangle position
+            body_rect.set_angle(0)  # Reset orientation
+            return body_rect,
+
+    # Function to update the frame
+    def update(frame):
+        if robot_type == "arm":
+            theta1, theta2 = path[frame]  # Get the joint angles from the path
+
+            # Compute the position of each link's end
+            base = np.array([0, 0])
+            joint1 = base + rotation_matrix(theta1) @ np.array([1.5, 0])  # First link length
+            end_eff = joint1 + rotation_matrix(theta1 + theta2) @ np.array([1.0, 0])  # Second link length
+
+            # Update the line data for the arm
+            line1.set_data([base[0], joint1[0]], [base[1], joint1[1]])
+            line2.set_data([joint1[0], end_eff[0]], [joint1[1], end_eff[1]])
+            end_effector.set_data(end_eff[0], end_eff[1])
+
+            return line1, line2, end_effector
+        else:
+            x, y, theta = path[frame]  # Get position and orientation from the path
+
+            # Update the rectangle position and angle
+            body_rect.set_xy((x + 0.25, y - 0.15))  # Adjust rectangle center
+            body_rect.set_angle(np.degrees(theta))  # Update angle
+
+            return body_rect,
+
+    # Create the animation
+    ani = animation.FuncAnimation(fig, update, frames=len(path), init_func=init, blit=True, repeat=False)
+
+    plt.title(f"Animating {robot_type} Robot Traversing the Path")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.legend()
+    plt.show()
 
 def main(robot_type, start_config, goal_config, map_file):
     environment = scene_from_file(map_file)

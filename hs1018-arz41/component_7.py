@@ -173,7 +173,9 @@ def get_link_boxes(arm_positions, theta0, theta1):
 def collision_free_conf(robot_type, robot_configuration, environment, debug=False):
     if robot_type == 'freeBody':
         for i, obstacle in enumerate(environment):
-            if check_collision(robot_configuration, obstacle):
+            robot = {'position': (robot_configuration[0], robot_configuration[1]),
+                     'width': 0.5, 'height': 0.3, 'orientation': robot_configuration[2]}
+            if check_collision(robot, obstacle):
                 return False
         return True
     if robot_type == 'arm':
