@@ -4,8 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 from matplotlib.patches import Polygon, Rectangle
-from rb_in_motion import *
-from movement_arm import *
+from utils.rb_in_motion import *
+from utils.movement_arm import *
 from component_1 import *
 from component_2 import *
 import math

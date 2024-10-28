@@ -1,7 +1,7 @@
 import numpy as np
 import argparse
 import matplotlib.pyplot as plt
-from movement_arm import *
+from utils.movement_arm import *
 import random
 import os
 
