@@ -75,6 +75,12 @@ def animate_solution(path, environment):
     ani = FuncAnimation(fig, update, frames=len(path), interval=100, blit=True, repeat=False)
 
     # Show the animation
+    filename = "component_7_2.gif"
+    try:
+        ani.save(filename, writer='pillow', fps=10)
+        print(f"Animation saved as {filename}")
+    except Exception as e:
+        print(f"Error saving animation: {e}")
     plt.show()
 
 # Extend function to generate new states
@@ -210,7 +216,7 @@ def main(start_config, goal_config, map_file, goal_radius=0.5):
     if not collision_free_conf("freeBody", start_config, environment):
         raise ValueError("Invalid start configuration for car")
     
-    rrt_growth_animation_func = lambda tree, env, start, goal: animate_rrt(tree, env, start, goal, filename='rrt_growth.gif')
+    rrt_growth_animation_func = lambda tree, env, start, goal: animate_rrt(tree, env, start, goal, filename='component_7_4.gif')
     
     tree, goal_node = build_rrt_car(start_config, goal_config, environment, goal_radius=goal_radius, animation_func=rrt_growth_animation_func)
     

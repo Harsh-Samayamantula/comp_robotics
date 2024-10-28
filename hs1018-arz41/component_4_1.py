@@ -28,7 +28,7 @@ def extend(nearest_node, random_sample, step_size=0.4):
     return new_config
 
 
-def build_rrt(robot_type, start_config, goal_config, environment, goal_radius=0.1, max_nodes=1000):
+def build_rrt(robot_type, start_config, goal_config, environment, goal_radius=0.1, max_nodes=5000, animation_func=None):
     tree = nx.Graph()
     tree.add_node(0, config=start_config)
 
@@ -50,11 +50,20 @@ def build_rrt(robot_type, start_config, goal_config, environment, goal_radius=0.
                 
                 if np.linalg.norm(new_config - goal_config) < goal_radius:
                     print(f"Goal reached after {i} nodes.")
+
+                    # Visualize the current state of the RRT
+                    if animation_func is not None:
+                        print('animation_func is not None')
+                        animation_func(tree, environment, start_config, goal_config)
                     return tree, i
+                
                 i+=1
 
     
     print(f"Maximum nodes ({max_nodes}) reached without finding the goal.")
+    if animation_func is not None:
+        print('animation_func is not None')
+        animation_func(tree, environment, start_config, goal_config)
     return tree, None
 
 def visualize_rrt(tree, start_config, goal_config, environment, goal_radius=0.1, robot_type="arm"):
@@ -97,6 +106,46 @@ def visualize_rrt(tree, start_config, goal_config, environment, goal_radius=0.1,
     plt.legend()
     plt.show()
 
+def animate_rrt(tree, environment, start_config, goal_config, filename='rrt_growth.gif', fps=1000):
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    # Plot the environment (obstacles)
+    for obstacle in environment:
+        obs_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
+        obs = plt.Polygon(obs_corners, edgecolor='black', facecolor='green')
+        ax.add_patch(obs)
+
+    # Plot the start and goal
+    plt.scatter(start_config[0], start_config[1], c='g', marker='o', s=100, label="Start")
+    plt.scatter(goal_config[0], goal_config[1], c='r', marker='x', s=100, label="Goal")
+
+    ax.set_xlim(-10, 10)
+    ax.set_ylim(-10, 10)
+    ax.set_aspect('equal')
+
+    plt.title("RRT for Car-like Robot")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.legend()
+
+    edges_list = list(tree.edges)
+
+    # Function to update the plot
+    def update(frame):
+        if frame < len(tree.edges):
+            node1, node2 = edges_list[frame]
+            config1 = tree.nodes[node1]['config']
+            config2 = tree.nodes[node2]['config']
+            ax.plot([config1[0], config2[0]], [config1[1], config2[1]], 'b-')
+        return ax,
+
+    ani = animation.FuncAnimation(fig, update, frames=len(tree.edges), repeat=False)
+    try:
+        ani.save(filename, writer='pillow', fps=fps)
+        print(f"Animation saved as {filename}")
+    except Exception as e:
+        print(f"Error saving animation: {e}")
+    plt.close(fig)  # Close the figure to avoid displaying it
 
 def main(robot_type, start_config, goal_config, map_file, goal_radius):
     environment = scene_from_file(map_file)
@@ -104,8 +153,10 @@ def main(robot_type, start_config, goal_config, map_file, goal_radius):
     if not collision_free_conf(robot_type, start_config, environment, debug=False):
         raise ValueError("Invalid starting configuration for robot")
         
+    rrt_growth_animation_func = lambda tree, env, start, goal: animate_rrt(tree, env, start, goal, filename='component_4_1_4.gif')
+
     # Build RRT
-    tree, goal_node = build_rrt(robot_type, start_config, goal_config, environment, goal_radius=goal_radius)
+    tree, goal_node = build_rrt(robot_type, start_config, goal_config, environment, goal_radius=goal_radius, animation_func=rrt_growth_animation_func)
     
     # Visualize the tree and solution path if found
     visualize_rrt(tree, start_config, goal_config, environment, goal_radius, robot_type)

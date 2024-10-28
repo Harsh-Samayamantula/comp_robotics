@@ -13,7 +13,7 @@ from component_7 import *
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Planner Comparison")
     parser.add_argument('--map', required=True, help="Path to the map file.")
-    parser.add_argument('--robot', required=True, choices=['arm', 'car'], help="Type of robot: 'arm' or 'car'.")
+    parser.add_argument('--robot', required=True, choices=['arm', 'freeBody'], help="Type of robot: 'arm' or 'freeBody'.")
     parser.add_argument('--start', nargs='+', type=float, required=True, help="Start configuration.")
     parser.add_argument('--goal', nargs='+', type=float, required=True, help="Goal configuration.")
     return parser.parse_args()
@@ -64,7 +64,7 @@ def main_evaluation():
     args = parse_arguments()
     env = scene_from_file(args.map)
     
-    if args.robot == "car":
+    if args.robot == "freeBody":
         d = 3
     else:
         d = 2

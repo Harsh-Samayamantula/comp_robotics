@@ -107,7 +107,7 @@ def visualize_scene_with_collisions(environment, robot, colliding_indices, robot
         rbt = Polygon(robot_corners, edgecolor='blue', facecolor='none')
         ax.add_patch(rbt)
     elif robot_type == 'arm':
-        link1_length, link2_length = 2, 1.5  # Assuming fixed lengths
+        link1_length, link2_length = 4, 2.5  # Assuming fixed lengths
         plot_arm(ax, robot, link1_length, link2_length, 'blue')
     
     ax.set_xlim(-10, 10)
@@ -118,10 +118,10 @@ def visualize_scene_with_collisions(environment, robot, colliding_indices, robot
 def forward_kinematics(theta0, theta1):
     """
     Compute the positions of the two links based on joint angles.
-    Link1 has length 2, and Link2 has length 1.5.
+    Link1 has length 4, and Link2 has length 2.5.
     """
-    link1_length = 2
-    link2_length = 1.5
+    link1_length = 4
+    link2_length = 2.5
     
     # Base of the arm is at the origin (0, 0)
     x0, y0 = 0, 0
@@ -141,8 +141,8 @@ def get_link_boxes(arm_positions, theta0, theta1):
     Generate rectangles representing the links of the arm, given the positions of the joints and end-effectors.
     Each link is represented as a box centered on the line segment between its two endpoints, with orientation.
     """
-    link1_length = 2
-    link2_length = 1.5
+    link1_length = 4
+    link2_length = 2.5
     link_width = 0.2  # Assume a fixed width for both links
 
     # Link1 is between the base (0,0) and the first joint
