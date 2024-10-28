@@ -2,10 +2,10 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-from component_5 import *
-from component_6 import *
-from component_7 import *
-from component_8 import *
+from component_1 import *
+from component_2 import *
+from component_3 import *
+from component_4 import *
 import networkx as nx
 
 def sample_config_rrt(robot_type, goal_config=None, goal_bias=0.05):
@@ -27,49 +27,35 @@ def extend(nearest_node, random_sample, step_size=0.4):
     new_config = nearest_node + direction
     return new_config
 
-def build_rrt_star(robot_type, start_config, goal_config, environment, goal_radius=0.1, max_nodes=1000, step_size=0.4, radius=1.0):
+
+def build_rrt(robot_type, start_config, goal_config, environment, goal_radius=0.1, max_nodes=1000):
     tree = nx.Graph()
-    tree.add_node(0, config=start_config, cost=0)
-    
+    tree.add_node(0, config=start_config)
+
     i = 1
     while tree.number_of_nodes() < max_nodes:
+    
         random_sample = sample_config_rrt(robot_type, goal_config)
+        
 
         configurations = [node['config'] for index, node in tree.nodes(data=True)]
         nearest_node, nearest_conf, _ = nearest_neighbors(robot_type, random_sample, configurations, 1, debug=False)[0]
         
-        new_config = extend(nearest_conf, random_sample, step_size)
+        new_config = extend(nearest_conf, random_sample)
         
         if collision_free_conf(robot_type, new_config, environment, debug=False):
             if is_collision_free((nearest_conf, new_config), environment, robot_type):
-                new_cost = tree.nodes[nearest_node]['cost'] + np.linalg.norm(nearest_conf - new_config)
-                
-                tree.add_node(i, config=new_config, cost=new_cost)
-                tree.add_edge(nearest_node, i)
-                
-                nearby_nodes = nearest_neighbors(robot_type, new_config, configurations, k=len(configurations), debug=False)  # Get all nodes
-                
-                for nearby_node, nearby_conf, dist in nearby_nodes:
-                    if dist > radius:
-                        break
-                    
-                    cost_via_new = new_cost + np.linalg.norm(new_config - nearby_conf)
-                    if cost_via_new < tree.nodes[nearby_node]['cost']:
-                        tree.nodes[nearby_node]['cost'] = cost_via_new
-                        tree.add_edge(i, nearby_node) 
-                        if tree.has_edge(nearest_node, nearby_node):
-                            tree.remove_edge(nearest_node, nearby_node) 
+                tree.add_node(i, config=new_config)
+                tree.add_edge(nearest_node, i)                
                 
                 if np.linalg.norm(new_config - goal_config) < goal_radius:
                     print(f"Goal reached after {i} nodes.")
                     return tree, i
-                
-                i += 1
+                i+=1
 
+    
     print(f"Maximum nodes ({max_nodes}) reached without finding the goal.")
     return tree, None
-
-
 
 def visualize_rrt(tree, start_config, goal_config, environment, goal_radius=0.1, robot_type="arm"):
     """Visualize the RRT tree."""
@@ -105,7 +91,7 @@ def visualize_rrt(tree, start_config, goal_config, environment, goal_radius=0.1,
     plt.scatter(goal_config[0], goal_config[1], c='r', marker='x', s=100, label="Goal")
     plt.gca().add_patch(plt.Circle(goal_config[:2], goal_radius, color='red', fill=False, linestyle='--', label="Goal Region"))
     
-    plt.title(f"RRT* for {robot_type}")
+    plt.title(f"RRT for {robot_type}")
     plt.xlabel("X")
     plt.ylabel("Y")
     plt.legend()
@@ -119,7 +105,7 @@ def main(robot_type, start_config, goal_config, map_file, goal_radius):
         raise ValueError("Invalid starting configuration for robot")
         
     # Build RRT
-    tree, goal_node = build_rrt_star(robot_type, start_config, goal_config, environment, goal_radius=goal_radius)
+    tree, goal_node = build_rrt(robot_type, start_config, goal_config, environment, goal_radius=goal_radius)
     
     # Visualize the tree and solution path if found
     visualize_rrt(tree, start_config, goal_config, environment, goal_radius, robot_type)

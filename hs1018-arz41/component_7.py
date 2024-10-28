@@ -1,297 +1,240 @@
-import os
-import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 import random
-from matplotlib.patches import Polygon, Rectangle
-from component_6 import *
-from component_5 import *
-from component_4 import *
+import networkx as nx
+from component_1 import scene_from_file
 from component_3 import *
-import math
 
-def rotate_point(point, angle):
-    """
-    Rotate a point (x, y) by a given angle around the origin.
-    """
-    x, y = point
-    cos_angle = math.cos(angle)
-    sin_angle = math.sin(angle)
-    return (x * cos_angle - y * sin_angle, x * sin_angle + y * cos_angle)
+# Define car parameters
+L = 2.0  # Length of the car (wheelbase)
 
-def get_corners(position, width, height, orientation):
-    """
-    Get the four corners of the robot given its position, width, height, and orientation.
-    """
-    cx, cy = position
-    half_w, half_h = width / 2, height / 2
+# Car dynamics equations
+def car_dynamics(state, V, delta, dt=0.1):
+    x, y, theta = state
+    beta = np.arctan(0.5 * np.tan(delta))
     
-    # The corners of the rectangle before rotation
-    corners = [(-half_w, -half_h), (half_w, -half_h), (half_w, half_h), (-half_w, half_h)]
+    # Update car's state based on its dynamics
+    x_dot = V * np.cos(theta + beta)
+    y_dot = V * np.sin(theta + beta)
+    theta_dot = (2 * V / L) * np.sin(beta)
     
-    # Rotate each corner by the orientation angle and then translate it to the robot's position
-    rotated_corners = [rotate_point(corner, orientation) for corner in corners]
-    translated_corners = [(cx + x, cy + y) for x, y in rotated_corners]
+    # New state after applying control for time dt
+    new_x = x + x_dot * dt
+    new_y = y + y_dot * dt
+    new_theta = theta + theta_dot * dt
     
-    return translated_corners
+    return np.array([new_x, new_y, new_theta])
 
-def check_collision(robot, obstacle, arm=False):
-    """
-    Check for collision using the Separating Axis Theorem (SAT) for rotated rectangles and AABB
-    """
-    robot_corners = get_corners(robot['position'], robot['width'], robot['height'], robot['orientation'])
-    obstacle_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
-    
-    return polygons_collide(robot_corners, obstacle_corners)
+# Sample random configuration for the car
+def sample_config_car(goal_config=None, goal_bias=0.01):
+    if random.random() < goal_bias and goal_config is not None:
+        return goal_config
+    else:
+        x = random.uniform(-10, 10)
+        y = random.uniform(-10, 10)
+        theta = random.uniform(-np.pi, np.pi)  # Orientation can range from -pi to pi
+        return np.array([x, y, theta])
 
-def project_polygon(axis, polygon):
-    """
-    Project a polygon onto an axis and return the min and max values of the projection.
-    """
-    projections = [np.dot(axis, corner) for corner in polygon]
-    return min(projections), max(projections)
-
-def polygons_collide(polygon1, polygon2):
-    """
-    Use the Separating Axis Theorem (SAT) to check if two polygons collide.
-    """
-    # Get all edges from both polygons
-    edges = []
-    for i in range(len(polygon1)):
-        p1 = polygon1[i]
-        p2 = polygon1[(i + 1) % len(polygon1)]
-        edge = np.array([p2[0] - p1[0], p2[1] - p1[1]])
-        edges.append(edge)
+def animate_solution(path, environment):
+    fig, ax = plt.subplots(figsize=(10, 10))
     
-    for i in range(len(polygon2)):
-        p1 = polygon2[i]
-        p2 = polygon2[(i + 1) % len(polygon2)]
-        edge = np.array([p2[0] - p1[0], p2[1] - p1[1]])
-        edges.append(edge)
-    
-    # For each edge, compute the normal (perpendicular) axis and project both polygons onto that axis
-    for edge in edges:
-        axis = np.array([-edge[1], edge[0]])  # Perpendicular axis
-        axis = axis / np.linalg.norm(axis)    # Normalize the axis
-        
-        proj1_min, proj1_max = project_polygon(axis, polygon1)
-        proj2_min, proj2_max = project_polygon(axis, polygon2)
-        
-        # If there is no overlap in the projections, the polygons do not collide
-        if proj1_max < proj2_min or proj2_max < proj1_min:
-            return False
-    
-    # If all projections overlap, the polygons collide
-    return True
-
-def visualize_scene_with_collisions(environment, robot, colliding_indices, robot_type):
-    """
-    Visualize the environment and robot. Colliding obstacles are red, non-colliding obstacles are green.
-    """
-    fig, ax = plt.subplots()
-    
-    # Draw obstacles and color them based on collision status
-    for i, obstacle in enumerate(environment):
-        color = 'red' if i in colliding_indices else 'green'
-        obstacle_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
-        obs = Polygon(obstacle_corners, edgecolor='black', facecolor=color)
+    # Plot the environment (obstacles)
+    for obstacle in environment:
+        obs_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
+        obs = plt.Polygon(obs_corners, edgecolor='black', facecolor='green')
         ax.add_patch(obs)
-    
-    # # Draw robot
-    # robot_corners = get_corners(robot['position'], robot['width'], robot['height'], robot['orientation'])
-    # rbt = Polygon(robot_corners, edgecolor='blue', facecolor='none')
-    # ax.add_patch(rbt)
 
-    if robot_type == 'freeBody':
-        robot_corners = get_corners(robot['position'], robot['width'], robot['height'], robot['orientation'])
-        rbt = Polygon(robot_corners, edgecolor='blue', facecolor='none')
-        ax.add_patch(rbt)
-    elif robot_type == 'arm':
-        link1_length, link2_length = 2, 1.5  # Assuming fixed lengths
-        plot_arm(ax, robot, link1_length, link2_length, 'blue')
-    
+    # Set plot limits
     ax.set_xlim(-10, 10)
     ax.set_ylim(-10, 10)
     ax.set_aspect('equal')
+    
+    # Draw the path as a line
+    path_x, path_y = zip(*[(state[0], state[1]) for state in path])
+    ax.plot(path_x, path_y, 'r-', linewidth=2, label="Path")
+    
+    # Initialize the car body (a rectangle) to represent the car
+    car_width = 1.0
+    car_height = 0.5
+    car_body = plt.Rectangle((0, 0), car_width, car_height, angle=0, color='blue', alpha=0.7)
+    ax.add_patch(car_body)
+
+    # Function to update the car's position and orientation for each frame
+    def update(frame):
+        state = path[frame]
+        x, y, theta = state
+        
+        # Update car's position and orientation
+        car_body.set_xy([x - car_width / 2, y - car_height / 2])  # Set position
+        car_body.angle = np.degrees(theta)  # Set orientation
+
+        return car_body,
+
+    # Create the animation
+    ani = FuncAnimation(fig, update, frames=len(path), interval=100, blit=True, repeat=False)
+
+    # Show the animation
     plt.show()
 
-def forward_kinematics(theta0, theta1):
-    """
-    Compute the positions of the two links based on joint angles.
-    Link1 has length 2, and Link2 has length 1.5.
-    """
-    link1_length = 2
-    link2_length = 1.5
+# Extend function to generate new states
+def extend_car(nearest_node, random_sample, step_size=0.5):
+    V = random.uniform(0, 1)  # Random velocity
+    delta = random.uniform(-np.pi / 3, np.pi / 3)  # Steering angle
     
-    # Base of the arm is at the origin (0, 0)
-    x0, y0 = 0, 0
+    # Apply car dynamics to move from nearest_node towards random_sample
+    new_state = car_dynamics(nearest_node, V, delta, dt=step_size)
     
-    # Compute the position of the end of the first link
-    x1 = x0 + link1_length * np.cos(theta0)
-    y1 = y0 + link1_length * np.sin(theta0)
+    return new_state
+
+def animate_rrt(tree, environment, start_config, goal_config, filename='rrt_growth.gif', fps=1000):
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    # Plot the environment (obstacles)
+    for obstacle in environment:
+        obs_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
+        obs = plt.Polygon(obs_corners, edgecolor='black', facecolor='green')
+        ax.add_patch(obs)
+
+    # Plot the start and goal
+    plt.scatter(start_config[0], start_config[1], c='g', marker='o', s=100, label="Start")
+    plt.scatter(goal_config[0], goal_config[1], c='r', marker='x', s=100, label="Goal")
+
+    ax.set_xlim(-10, 10)
+    ax.set_ylim(-10, 10)
+    ax.set_aspect('equal')
+
+    plt.title("RRT for Car-like Robot")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.legend()
+
+    edges_list = list(tree.edges)
+
+    # Function to update the plot
+    def update(frame):
+        if frame < len(tree.edges):
+            node1, node2 = edges_list[frame]
+            config1 = tree.nodes[node1]['config']
+            config2 = tree.nodes[node2]['config']
+            ax.plot([config1[0], config2[0]], [config1[1], config2[1]], 'b-')
+        return ax,
+
+    ani = FuncAnimation(fig, update, frames=len(tree.edges), repeat=False)
+    try:
+        ani.save(filename, writer='pillow', fps=fps)
+        print(f"Animation saved as {filename}")
+    except Exception as e:
+        print(f"Error saving animation: {e}")
+    plt.close(fig)  # Close the figure to avoid displaying it
+
+# Build RRT for car-like robot
+def build_rrt_car(start_config, goal_config, environment, goal_radius=0.5, max_nodes=1000, animation_func=None):
+    tree = nx.Graph()
+    tree.add_node(0, config=start_config)
+    i = 1
+
+    # To store edges for animation later
+    # edges_for_animation = []
     
-    # Compute the position of the end of the second link
-    x2 = x1 + link2_length * np.cos(theta0 + theta1)
-    y2 = y1 + link2_length * np.sin(theta0 + theta1)
-    
-    return [(x0, y0), (x1, y1), (x2, y2)]  # Base, end of link1, end of link2
-
-def get_link_boxes(arm_positions, theta0, theta1):
-    """
-    Generate rectangles representing the links of the arm, given the positions of the joints and end-effectors.
-    Each link is represented as a box centered on the line segment between its two endpoints, with orientation.
-    """
-    link1_length = 2
-    link2_length = 1.5
-    link_width = 0.2  # Assume a fixed width for both links
-
-    # Link1 is between the base (0,0) and the first joint
-    x0, y0 = arm_positions[0]
-    x1, y1 = arm_positions[1]
-
-    # Link2 is between the first joint and the second joint (end of the second link)
-    x2, y2 = arm_positions[2]
-
-    # Define the boxes (position, width, height, and orientation)
-    link1_box = {
-        'position': [(x0 + x1) / 2, (y0 + y1) / 2],  # Center of link1
-        'width': link1_length,
-        'height': link_width,
-        'orientation': theta0  # Orientation of the first link is theta0
-    }
-
-    link2_box = {
-        'position': [(x1 + x2) / 2, (y1 + y2) / 2],  # Center of link2
-        'width': link2_length,
-        'height': link_width,
-        'orientation': theta0 + theta1  # Orientation of the second link is theta0 + theta1
-    }
-
-    return [link1_box, link2_box]
-
-
-def collision_free_conf(robot_type, robot_configuration, environment, debug=False):
-    if robot_type == 'freeBody':
-        for i, obstacle in enumerate(environment):
-            robot = {'position': (robot_configuration[0], robot_configuration[1]),
-                     'width': 0.5, 'height': 0.3, 'orientation': robot_configuration[2]}
-            if check_collision(robot, obstacle):
-                return False
-        return True
-    if robot_type == 'arm':
-        # Check collision at configuration of arm
-         # robot_configuration should be a tuple of joint angles (theta0, theta1)
-        if debug: print('Robot Config:', robot_configuration)
-        theta0, theta1 = robot_configuration
+    while tree.number_of_nodes() < max_nodes:
+        # print(f"Tree size: {tree.number_of_nodes()}, Iteration: {i}")
+        random_sample = sample_config_car(goal_config)
+        configurations = [node['config'] for _, node in tree.nodes(data=True)]
         
-        # Get the positions of the links using forward kinematics
-        arm_positions = forward_kinematics(theta0, theta1)
-        if debug: print(arm_positions)
+        # Find nearest node
+        nearest_node, nearest_conf, _ = nearest_neighbors("freeBody", random_sample, configurations, 1)[0]
         
-        # Get the link boxes (rectangular representations of the links)
-        link_boxes = get_link_boxes(arm_positions, theta0, theta1)
-        if debug: print(link_boxes)
-        # Check if either link collides with any obstacle
-        for obstacle in environment:
-            for link_box in link_boxes:
-                if check_collision(link_box, obstacle, arm=True):  # Check collision for each link box
-                    return False
+        # Extend the tree in the direction of the random_sample
+        new_config = extend_car(nearest_conf, random_sample)
         
-        return True
+        # Check for collisions (function not provided, assuming a pre-defined collision checker)
+        if collision_free_conf("freeBody", new_config, environment):
+            if is_collision_free((nearest_conf, new_config), environment, "freeBody"):
+                tree.add_node(i, config=new_config)
+                tree.add_edge(nearest_node, i)
 
-def is_collision_free(path, environment, robot_type):
-    """
-    Check if the path between two configurations is collision-free.
-    Path is a tuple of two configurations (start, goal).
-    """
-    start, goal = path
+
+                # Store the edge for later animation
+                # edges_for_animation.append((nearest_conf, new_config))
+                
+                # Check if goal is reached
+                if np.linalg.norm(new_config[:2] - goal_config[:2]) < goal_radius:
+                    print(f"Goal reached after {i} nodes.")
+                
+                    # Visualize the current state of the RRT
+                    if animation_func is not None:
+                        print('animation_func is not None')
+                        animation_func(tree, environment, start_config, goal_config)
+
+                    return tree, i
+                i += 1
     
-    if robot_type == 'freeBody':
-        # Interpolate between the start and goal for rigid body
-        robot_path = interpolate_rigid_body(start, goal)
-    elif robot_type == 'arm':
-        # Interpolate between the start and goal for arm
-        robot_path = interpolate_arm(start, goal)
-        
+    print("Max nodes reached without finding the goal.")
+    if animation_func is not None:
+        print('animation_func is not None')
+        animation_func(tree, environment, start_config, goal_config)
+    return tree, None
+
+# Visualize RRT and trajectory for the car
+def visualize_rrt_car(tree, start_config, goal_config, environment, goal_radius=0.5):
+    plt.figure(figsize=(10, 10))
     
-    # Check if all configurations along the path are collision-free
-    # print(f'ROBOT PATH {start} {goal}')
-    # print(robot_path)
-    for config in robot_path:
-        # print(f'Checking {config}')
-        if not collision_free_conf(robot_type, config, environment):
-            return False
+    # Obstacles
+    for obstacle in environment:
+        obs_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
+        obs = plt.Polygon(obs_corners, edgecolor='black', facecolor='green')
+        plt.gca().add_patch(obs)
     
-    return True
-
-
-def collision_checking(environment_file, robot_type):
-    """
-    Perform collision checking by placing the robot randomly for 10 seconds and checking for collisions.
-    """
-    # Load the environment
-    environment = scene_from_file(environment_file)
+    # Plot the tree
+    for node1, node2 in tree.edges:
+        config1 = tree.nodes[node1]['config']
+        config2 = tree.nodes[node2]['config']
+        plt.plot([config1[0], config2[0]], [config1[1], config2[1]], 'b-')
     
-    robot_size = (0.5, 0.3)  # Robot dimensions (width, height)
+    # Start and goal
+    plt.scatter(start_config[0], start_config[1], c='g', marker='o', s=100, label="Start")
+    plt.scatter(goal_config[0], goal_config[1], c='r', marker='x', s=100, label="Goal")
+    plt.gca().add_patch(plt.Circle(goal_config[:2], goal_radius, color='red', fill=False, linestyle='--', label="Goal Region"))
     
-    if robot_type == 'freeBody':
-        robot_size = (0.5, 0.3)  # Robot dimensions (width, height)
+    plt.title("RRT for Car-like Robot")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.legend()
+    plt.show()
 
-        # Perform 10 random poses of the robot (1 pose per second)
-        for _ in range(10):
-            # Random pose for the robot
-            robot_position = (random.uniform(-10, 10), random.uniform(-10, 10))
-            robot_orientation = random.uniform(0, 2 * math.pi)  # Random orientation in radians
-            robot = {'position': robot_position, 'width': robot_size[0], 'height': robot_size[1], 'orientation': robot_orientation}
-
-            # Check for collisions with all obstacles
-            colliding_indices = []
-            for i, obstacle in enumerate(environment):
-                if check_collision(robot, obstacle):
-                    colliding_indices.append(i)
-
-            # Visualize the environment with collision indication
-            visualize_scene_with_collisions(environment, robot, colliding_indices, robot_type)
-
-    elif robot_type == 'arm':
-        # Perform 10 random arm configurations
-        for _ in range(10):
-            # Random joint angles for the arm
-            theta0 = random.uniform(0, 2 * np.pi)
-            theta1 = random.uniform(0, 2 * np.pi)
-            robot_configuration = (theta0, theta1)
-
-            # Get the positions of the links using forward kinematics
-            arm_positions = forward_kinematics(theta0, theta1)
-
-            # Get the link boxes (rectangular representations of the links)
-            link_boxes = get_link_boxes(arm_positions, theta0, theta1)
-
-            # Check for collisions with all obstacles
-            colliding_indices = []
-            for i, obstacle in enumerate(environment):
-                for link_box in link_boxes:
-                    if check_collision(link_box, obstacle, arm=True):  # Check collision for each link box
-                        colliding_indices.append(i)
-                        break  # No need to check other links if one collides
-
-            # Visualize the environment with collision indication
-            visualize_scene_with_collisions(environment, robot_configuration, colliding_indices, robot_type)
-
-def main():
-    parser = argparse.ArgumentParser(description="Process a map argument.")
+# Main function to execute RRT for car-like robot
+def main(start_config, goal_config, map_file, goal_radius=0.5):
+    environment = scene_from_file(map_file)
     
-    # Adding the --map argument
-    parser.add_argument('--map', type=str, required=True, help='Path to the map file or description')
+    if not collision_free_conf("freeBody", start_config, environment):
+        raise ValueError("Invalid start configuration for car")
+    
+    rrt_growth_animation_func = lambda tree, env, start, goal: animate_rrt(tree, env, start, goal, filename='rrt_growth.gif')
+    
+    tree, goal_node = build_rrt_car(start_config, goal_config, environment, goal_radius=goal_radius, animation_func=rrt_growth_animation_func)
+    
+    visualize_rrt_car(tree, start_config, goal_config, environment, goal_radius)
+    
+    if goal_node is not None:
+        path = nx.shortest_path(tree, source=0, target=goal_node)
+        path_configurations = [tree.nodes[node]['config'] for node in path]
+        print("Path found:", path_configurations)
 
-    # Adding the --robot argument
-    parser.add_argument('--robot', type=str, choices=['freeBody', 'arm'], required=True, help='Type of robot (freeBody or arm)')
+        # Visualize the car driving through the path
+        animate_solution(path_configurations, environment)
+    else:
+        print("No valid path found.")
 
-    # Parse the arguments
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="RRT for Car-like Robot")
+    parser.add_argument("--start", type=float, nargs=3, required=True, help="Start configuration (x, y, theta)")
+    parser.add_argument("--goal", type=float, nargs=3, required=True, help="Goal configuration (x, y, theta)")
+    parser.add_argument("--map", type=str, required=True, help="Map file")
+    parser.add_argument("--goal_rad", type=float, default=0.5, help="Goal radius")
+    
     args = parser.parse_args()
     
-    # Run collision checking with the specified environment file and robot type
-    collision_checking(args.map, args.robot)
-
-if __name__ == '__main__':
-    main()
+    main(np.array(args.start), np.array(args.goal), args.map, args.goal_rad)

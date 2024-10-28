@@ -1,135 +1,136 @@
-import numpy as np
 import argparse
-import matplotlib.pyplot as plt
+import heapq
+import time
+import numpy as np
+from component_2 import *
+from component_3 import *
 from component_4 import *
-import random
-import os
+from component_4_1 import *
+from component_5 import * 
+from component_7 import * 
 
-def generate_freebody_configs(num_configs, filename):
-    os.makedirs('configs', exist_ok=True)
-    path = os.path.join('configs', filename)
-    with open(path, 'w') as f:
-        for _ in range(num_configs):
-            x = np.random.uniform(-10, 10) 
-            y = np.random.uniform(-10, 10) 
-            theta = random.uniform(0, 2 * np.pi)
-            f.write(f"{x} {y} {theta}\n")
+# Parsing arguments for input configurations
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Planner Comparison")
+    parser.add_argument('--map', required=True, help="Path to the map file.")
+    parser.add_argument('--robot', required=True, choices=['arm', 'car'], help="Type of robot: 'arm' or 'car'.")
+    parser.add_argument('--start', nargs='+', type=float, required=True, help="Start configuration.")
+    parser.add_argument('--goal', nargs='+', type=float, required=True, help="Goal configuration.")
+    return parser.parse_args()
 
-def generate_arm_configs(num_configs, filename):
-    os.makedirs('configs', exist_ok=True)
-    path = os.path.join('configs', filename)
-    with open(path, 'w') as f:
-        for _ in range(num_configs):
-            theta0 = random.uniform(0, 2 * np.pi)
-            theta1 = random.uniform(0, 2 * np.pi)
-            f.write(f"{theta0} {theta1}\n")
+def reconstruct_path(parent, goal):
+    path = []
+    current = goal
 
-def load_configs(filename):
-    path = os.path.join('configs', filename)
-    with open(path, 'r') as f:
-        configs = [np.array(list(map(float, line.strip().split()))) for line in f]
-    return configs
+    while current is not None:
+        path.append(current)
+        current = parent[current]
 
-def euclidean_distance(start, end):
-    x1, y1, theta1 = start
-    x2, y2, theta2 = end
-    position_distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-    angle_distance = min(abs(theta2 - theta1), 2 * np.pi - abs(theta2 - theta1))
-    return position_distance + angle_distance
+    path.reverse()  # Reverse the path to get it from start to goal
+    return path
 
-def toroidal_distance(config, target):
-    theta0_1, theta1_1 = config 
-    theta0_2, theta1_2 = target
+def uniform_cost_search2(G, start, goal):
+    visited = set()
+    queue = []
+    #  (cost, node) 
+    heapq.heappush(queue, (0, start))
+
+    parent = {start: None}
+    costs = {start: 0}
+
+    while queue:
+        cost, node = heapq.heappop(queue)
+        if node in visited:
+            continue
+
+        visited.add(node)
+        if node == goal:
+            path = reconstruct_path(parent, goal)
+            total_cost = costs[goal]
+            return path, total_cost
+
+        for neighbor, neighbor_cost in G[node]:
+            new_cost = cost + neighbor_cost
+
+            if neighbor not in visited and (neighbor not in costs or new_cost < costs[neighbor]):
+                costs[neighbor] = new_cost
+                parent[neighbor] = node
+                heapq.heappush(queue, (new_cost, neighbor))
+
+    return [], float('inf')
+
+# Main evaluation function
+def main_evaluation():
+    args = parse_arguments()
+    env = scene_from_file(args.map)
     
-    d_theta0 = min(abs(theta0_2 - theta0_1), 2 * np.pi - abs(theta0_2 - theta0_1))
-    d_theta1 = min(abs(theta1_2 - theta1_1), 2 * np.pi - abs(theta1_2 - theta1_1))
-    
-    return np.sqrt(d_theta0 ** 2 + d_theta1 ** 2)
+    if args.robot == "car":
+        d = 3
+    else:
+        d = 2
 
-# def nearest_neighbors(args, configs):
-def nearest_neighbors(robot_type, target, configurations, k, debug=False):
-    if debug: print('Configurations Provided', len(configurations))
-    distances = []
-    if robot_type == 'freeBody':
-        # Compute using Euclidean Distance
-        for index, config in enumerate(configurations):
-            distances.append((index, config, euclidean_distance(config, target)))
-            if debug: print('Index', index, 'Config', config)
-    else: # robot = 'arm'
-        # Compute using angular euclidean function
-        for index, config in enumerate(configurations):
-            distances.append((index, config, toroidal_distance(config, target)))
-    distances.sort(key=lambda x: x[2])
-    if debug: print('Len of distances', len(distances))
-    if debug: print(distances[:k])
-    return distances[:k]
+    k = 6
+    max_iter = 500  # Maximum iterations for each planner
 
-def visualize(distances, target, robot_type):
-    fig, ax = plt.subplots()
-    
-    if robot_type == 'freeBody':
-        ax.set_xlim([-10, 10])
-        ax.set_ylim([-10, 10])
-        ax.set_aspect('equal')
-        ax.grid(True)
+    results = {}
+
+    # List of planners to evaluate
+    planners = {
+        "PRM": lambda: build_prm(args.robot, env, n_samples=max_iter, k=k),
+        "RRT": lambda: build_rrt(args.robot, args.start, args.goal, env, max_nodes=max_iter),
+        "RRT*": lambda: build_rrt_star(args.robot, args.start, args.goal, env, max_nodes=max_iter)
+    }
+
+    # Evaluate each planner directly
+    for planner_name, planner_func in planners.items():
+        success_count = 0
+        path_lengths = []
+        times = []
+
+        print(f"Evaluating {planner_name}...")
         
-        target_rect = Rectangle((target[0] - 0.25, target[1] - 0.15), 0.5, 0.3, angle=target[2], color='red')
-        ax.add_patch(target_rect)
-        
-        for _, config, _ in distances:
-            rect = Rectangle((config[0] - 0.25, config[1] - 0.15), 0.5, 0.3, angle=config[2], color='blue', alpha=0.5)
-            ax.add_patch(rect)
+        # Run the planner 10 times
+        for _ in range(10):
+            start_time = time.time()
+            
+            # Run the planner to generate graph G
+            G = planner_func()
+            
+            # Find the shortest path in the graph G
+            path, total_cost = uniform_cost_search2(G, args.start, args.goal)
+            
+            end_time = time.time()
+            execution_time = end_time - start_time
+            times.append(execution_time)
 
-        plt.title(f'Nearest Neighbors Visualization - Free Body')
+            # Validate and measure the path
+            if path:
+                path_lengths.append(total_cost)  # Using total_cost from UCS as the path length
+                success_count += 1
+
+        # Results summary for the current planner
+        success_rate = success_count / 10
+        avg_path_length = np.mean(path_lengths) if path_lengths else float('inf')
+        avg_time = np.mean(times)
+
+        # Store the results
+        results[planner_name] = {
+            "Success Rate": success_rate,
+            "Average Path Length": avg_path_length,
+            "Average Computation Time": avg_time
+        }
+
+        print(f"\n{planner_name} Results:")
+        print(f"  Success Rate: {success_rate * 100}%")
+        print(f"  Average Path Length: {avg_path_length}")
+        print(f"  Average Computation Time: {avg_time:.4f} seconds\n")
     
-    elif robot_type == 'arm':
-        link1_length, link2_length = 2, 1.5
-        ax.set_xlim([-4, 4])
-        ax.set_ylim([-4, 4])
-        ax.set_aspect('equal')
-        ax.grid(True)
+    # Print all results
+    for planner_name, metrics in results.items():
+        print(f"{planner_name} Final Summary:")
+        print(f"  Success Rate: {metrics['Success Rate'] * 100}%")
+        print(f"  Average Path Length: {metrics['Average Path Length']}")
+        print(f"  Average Computation Time: {metrics['Average Computation Time']:.4f} seconds\n")
 
-        plot_arm(ax, target, link1_length, link2_length, 'red')
-
-        for _, config, _ in distances:
-            plot_arm(ax, config, link1_length, link2_length, 'blue', alpha=0.5)
-        
-        plt.title(f'Nearest Neighbors Visualization - Arm')
-    
-    plt.show()
-
-def plot_arm(ax, config, link1_length, link2_length, color, alpha=1.0):
-    theta0, theta1 = config
-    J0 = np.array([0, 0])
-    J1 = J0 + rotation_matrix(theta0) @ np.array([link1_length, 0])
-    J2 = J1 + rotation_matrix(theta0 + theta1) @ np.array([link2_length, 0])
-    
-   
-    ax.plot([J0[0], J1[0]], [J0[1], J1[1]], color=color, lw=4, alpha=alpha)
-    ax.plot([J1[0], J2[0]], [J1[1], J2[1]], color=color, lw=4, alpha=alpha)
-
-    ax.plot(J0[0], J0[1], 'o', color=color, alpha=alpha)
-    ax.plot(J1[0], J1[1], 'o', color=color, alpha=alpha)
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--robot', type=str, required=True)
-    parser.add_argument('--target', type=float, nargs='+', required=True)
-    parser.add_argument('-k', type=int, required=True)
-    parser.add_argument('--configs', type=str, required=True)
-
-    args = parser.parse_args()
-    configs = load_configs(args.configs)
-    # neighbors = nearest_neighbors(args, configs)
-    neighbors = nearest_neighbors(args.robot, args.target, configs, args.k)
-    
-    for neighbor in neighbors:
-        print(f"Configuration: {neighbor[0]}, Distance: {neighbor[1]}")
-    
-    visualize(neighbors, args.target, args.robot)
-
-if __name__ == "__main__":
-    # generate_freebody_configs(10, 'configs.txt')
-    generate_arm_configs(10, 'configs.txt')
-    main()
-
+if __name__ == '__main__':
+    main_evaluation()
