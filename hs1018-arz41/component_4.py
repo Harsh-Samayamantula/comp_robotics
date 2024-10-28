@@ -17,7 +17,7 @@ def sample_config(robot_type):
         raise ValueError("Invalid robot type")
 
 
-def build_prm(robot_type, environment, n_samples=5000, k=6, debug=False):
+def build_prm(robot_type, environment, n_samples=500, k=6, debug=False):
     graph = nx.Graph()
     samples = []
     
@@ -186,7 +186,7 @@ def animate_solution(path, robot_type, environment):
 
     # Create the animation
     ani = animation.FuncAnimation(fig, update, frames=len(path), init_func=init, blit=True, repeat=False)
-    filename = "component_7_3.gif"
+    filename = "component_4_1_8.gif"
     try:
         ani.save(filename, writer='pillow', fps=10)
         print(f"Animation saved as {filename}")

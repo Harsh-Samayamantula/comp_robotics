@@ -28,7 +28,7 @@ def extend(nearest_node, random_sample, step_size=0.4):
     return new_config
 
 
-def build_rrt(robot_type, start_config, goal_config, environment, goal_radius=0.1, max_nodes=5000, animation_func=None):
+def build_rrt(robot_type, start_config, goal_config, environment, goal_radius=0.1, max_nodes=1000, animation_func=None):
     tree = nx.Graph()
     tree.add_node(0, config=start_config)
 
@@ -153,7 +153,7 @@ def main(robot_type, start_config, goal_config, map_file, goal_radius):
     if not collision_free_conf(robot_type, start_config, environment, debug=False):
         raise ValueError("Invalid starting configuration for robot")
         
-    rrt_growth_animation_func = lambda tree, env, start, goal: animate_rrt(tree, env, start, goal, filename='component_4_1_4.gif')
+    rrt_growth_animation_func = lambda tree, env, start, goal: animate_rrt(tree, env, start, goal, filename='component_4_1_6.gif')
 
     # Build RRT
     tree, goal_node = build_rrt(robot_type, start_config, goal_config, environment, goal_radius=goal_radius, animation_func=rrt_growth_animation_func)
