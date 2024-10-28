@@ -87,18 +87,59 @@ def extend_car(nearest_node, random_sample, step_size=0.5):
     
     return new_state
 
+def animate_rrt(tree, environment, start_config, goal_config, filename='rrt_growth.gif'):
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    # Plot the environment (obstacles)
+    for obstacle in environment:
+        obs_corners = get_corners(obstacle['position'], obstacle['width'], obstacle['height'], obstacle['orientation'])
+        obs = plt.Polygon(obs_corners, edgecolor='black', facecolor='green')
+        ax.add_patch(obs)
+
+    # Plot the start and goal
+    plt.scatter(start_config[0], start_config[1], c='g', marker='o', s=100, label="Start")
+    plt.scatter(goal_config[0], goal_config[1], c='r', marker='x', s=100, label="Goal")
+
+    ax.set_xlim(-10, 10)
+    ax.set_ylim(-10, 10)
+    ax.set_aspect('equal')
+
+    plt.title("RRT for Car-like Robot")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.legend()
+
+    edges_list = list(tree.edges)
+
+    # Function to update the plot
+    def update(frame):
+        if frame < len(tree.edges):
+            node1, node2 = edges_list[frame]
+            config1 = tree.nodes[node1]['config']
+            config2 = tree.nodes[node2]['config']
+            ax.plot([config1[0], config2[0]], [config1[1], config2[1]], 'b-')
+        return ax,
+
+    ani = FuncAnimation(fig, update, frames=len(tree.edges), repeat=False)
+    try:
+        ani.save(filename, writer='pillow', fps=10)
+        print(f"Animation saved as {filename}")
+    except Exception as e:
+        print(f"Error saving animation: {e}")
+    plt.close(fig)  # Close the figure to avoid displaying it
+
 # Build RRT for car-like robot
-def build_rrt_car(start_config, goal_config, environment, goal_radius=0.5, max_nodes=1000):
+def build_rrt_car(start_config, goal_config, environment, goal_radius=0.5, max_nodes=1000, animation_func=None):
     tree = nx.Graph()
     tree.add_node(0, config=start_config)
     i = 1
+
+    # To store edges for animation later
+    # edges_for_animation = []
     
     while tree.number_of_nodes() < max_nodes:
+        print(f"Tree size: {tree.number_of_nodes()}, Iteration: {i}")
         random_sample = sample_config_car(goal_config)
-        # x = random.uniform(-20, 0)
-        # y = random.uniform(-20, 0)
-        # theta = random.uniform(-np.pi, np.pi)
-        # random_sample = np.array([x, y, theta])
         configurations = [node['config'] for _, node in tree.nodes(data=True)]
         
         # Find nearest node
@@ -112,14 +153,27 @@ def build_rrt_car(start_config, goal_config, environment, goal_radius=0.5, max_n
             if is_collision_free((nearest_conf, new_config), environment, "freeBody"):
                 tree.add_node(i, config=new_config)
                 tree.add_edge(nearest_node, i)
+
+
+                # Store the edge for later animation
+                # edges_for_animation.append((nearest_conf, new_config))
                 
                 # Check if goal is reached
                 if np.linalg.norm(new_config[:2] - goal_config[:2]) < goal_radius:
                     print(f"Goal reached after {i} nodes.")
+                
+                    # Visualize the current state of the RRT
+                    if animation_func is not None:
+                        print('animation_func is not None')
+                        animation_func(tree, environment, start_config, goal_config)
+
                     return tree, i
                 i += 1
     
     print("Max nodes reached without finding the goal.")
+    if animation_func is not None:
+        print('animation_func is not None')
+        animation_func(tree, environment, start_config, goal_config)
     return tree, None
 
 # Visualize RRT and trajectory for the car
@@ -156,9 +210,12 @@ def main(start_config, goal_config, map_file, goal_radius=0.5):
     if not collision_free_conf("freeBody", start_config, environment):
         raise ValueError("Invalid start configuration for car")
     
-    tree, goal_node = build_rrt_car(start_config, goal_config, environment, goal_radius=goal_radius)
+    rrt_growth_animation_func = lambda tree, env, start, goal: animate_rrt(tree, env, start, goal, filename='rrt_growth.gif')
+    
+    tree, goal_node = build_rrt_car(start_config, goal_config, environment, goal_radius=goal_radius, animation_func=rrt_growth_animation_func)
     
     visualize_rrt_car(tree, start_config, goal_config, environment, goal_radius)
+    
     if goal_node is not None:
         path = nx.shortest_path(tree, source=0, target=goal_node)
         path_configurations = [tree.nodes[node]['config'] for node in path]
